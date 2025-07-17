@@ -1,0 +1,8 @@
+- base template for all kernels (precomputed loot tables, other shared code)
+- naive bruteforce kernel template
+- roll count state prediction template
+- item type state prediction template
+- random enchantment state prediction template
+- random enchantment advanced reversal template
+- bit lifting template (is it even worth it?)
+- other options?

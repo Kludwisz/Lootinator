@@ -1,0 +1,3 @@
+- loot pool filter generator (for pools that contain filtered items)
+- loot pool skip generator (for pools that don't contain filtered items)
+- item layout filter generator
