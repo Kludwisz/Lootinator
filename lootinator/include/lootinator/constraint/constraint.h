@@ -1,6 +1,8 @@
 #ifndef LOOTINATOR_CONSTRAINT_CONSTRAINT_H
 #define LOOTINATOR_CONSTRAINT_CONSTRAINT_H
 
+#include "lootinator/utility/range.h"
+
 #include <cstdint>
 #include <vector>
 #include <algorithm>
@@ -10,19 +12,17 @@ namespace loot {
 
     struct ItemAttribute {
         std::uint32_t type;
-        std::uint32_t min_level;
-        std::uint32_t max_level;
+        RangeInclusive<std::uint32_t> level_range;
 
         inline bool operator==(const ItemAttribute& other) {
-            return type == other.type && min_level == other.min_level && max_level == other.max_level;
+            return type == other.type && level_range == other.level_range;
         }
     };
 
     // stores loot constraints on individual slots of items
     struct Constraint {
         std::uint32_t item;
-        std::uint32_t min_count;
-        std::uint32_t max_count;
+        RangeInclusive<std::uint32_t> count_range;
         std::int32_t slot_id; // contraints are shared by cracking and finding kernels, finding won't use this
 
         std::vector<ItemAttribute> attributes;
