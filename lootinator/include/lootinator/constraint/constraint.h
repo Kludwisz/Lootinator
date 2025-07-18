@@ -1,5 +1,5 @@
-#ifndef CONSTRAINT_H
-#define CONSTRAINT_H
+#ifndef LOOTINATOR_CONSTRAINT_H
+#define LOOTINATOR_CONSTRAINT_H
 
 #include <cstdint>
 #include <vector>
