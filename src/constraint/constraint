@@ -1,0 +1,6 @@
+/*
+should be easy to go between cracking and finding
+one constraint per item slot/stack, for finding slots are accumulated because layout is ignored
+each constraint like (item, min_count, max_count) 
+constraint contains list of enchantments: [(enchantment, min_level, max_level)]
+*/
