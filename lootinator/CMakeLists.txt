@@ -4,9 +4,4 @@ add_library(lootinator
 	src/lootinator.cpp
 )
 
-add_test(
-	NAME constraint_merge_test
-	COMMAND ...
-)
-
 target_include_directories(lootinator PUBLIC include)
