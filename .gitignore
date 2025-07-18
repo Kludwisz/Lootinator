@@ -1,2 +1,4 @@
-src/templates/gen.exe
-.vscode/settings.json
+*.exe
+/.vscode
+/.cache
+/build
