@@ -6,8 +6,7 @@ namespace loot {
             if (stored_constraint.item_equal(constraint)) {
                 // have two item count ranges (min1, max1), (min2, max2)
                 // the new min is min1+min2, new max is max1+max2
-                stored_constraint.min_count += constraint.min_count;
-                stored_constraint.max_count += constraint.max_count;
+                stored_constraint.count_range = stored_constraint.count_range.merge(constraint.count_range);
                 stored_constraint.slot_id = loot::UNUSED;
                 return;
             }
