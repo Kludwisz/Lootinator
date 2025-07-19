@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.10)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 project(Lootinator9000 LANGUAGES CXX)
+include(CTest)
 
 if(MSVC)
 	add_compile_options(/W4)
