@@ -1,6 +1,12 @@
 #ifndef LOOTINATOR_TESTING_ASSERTIONS_H
 #define LOOTINATOR_TESTING_ASSERTIONS_H
 
+#ifdef _WIN32
+#define LOOTINATOR_EXTERN int __cdecl
+#else
+#define LOOTINATOR_EXTERN extern "C" int
+#endif
+
 namespace loottest {
     template <class T, class U>
     void assert_compare_fail(const char* file, int line, const char* operator_symbol, const T& first, const U& second, const char* first_string, const char* second_string) {

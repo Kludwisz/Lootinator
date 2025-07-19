@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <vector>
+#include <ostream>
 #include <algorithm>
 
 namespace loot {
@@ -13,7 +14,7 @@ namespace loot {
         std::uint32_t min_level;
         std::uint32_t max_level;
 
-        inline bool operator==(const ItemAttribute& other) {
+        bool operator==(const ItemAttribute& other) const {
             return type == other.type && min_level == other.min_level && max_level == other.max_level;
         }
     };
@@ -27,14 +28,26 @@ namespace loot {
 
         std::vector<ItemAttribute> attributes;
 
-        inline bool item_equals(const Constraint& other) {
+        bool item_equal(const Constraint& other) const {
             if (item != other.item || attributes.size() != other.attributes.size()) 
                 return false;
 
             // all item attributes must match
             return std::equal(attributes.begin(), attributes.begin() + attributes.size(), other.attributes.begin());
         }
+
+        bool operator==(const Constraint& other) const {
+            return item_equal(other) && other.min_count == min_count && other.max_count == max_count && other.slot_id == slot_id;
+        }
+
+        friend std::ostream& operator<<(std::ostream& os, const Constraint& constraint) {
+            os << "Constraint{item=" << constraint.item << ", min=" << constraint.min_count 
+                    << ", max=" << constraint.max_count << ", slot=" << constraint.slot_id << "}";
+            return os;
+        }
     };
+
+    void merge_contraints(const std::vector<loot::Constraint>& src, std::vector<loot::Constraint>& dest);
 
     // static bool attributes_match(const std::vector<ItemAttribute>& first, const std::vector<ItemAttribute>& second) {
     //     for (const auto& e1 : first) {
