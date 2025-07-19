@@ -12,6 +12,4 @@ namespace loottest {
         //std::printf("%s:%d Test assertion failed: %s\n", filename, line, message);
         std::terminate();
     }
-
-
 }

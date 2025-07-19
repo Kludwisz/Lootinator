@@ -4,16 +4,17 @@
 namespace loottest {
     template <class T, class U>
     void assert_compare_fail(const char* file, int line, const char* operator_symbol, const T& first, const U& second, const char* first_string, const char* second_string) {
-        std::cerr << file << ":" << line << "Assertion \'" << operator_symbol << "\'failed!\n" 
+        std::cerr << file << ":" << line << "\nAssertion \'" << operator_symbol << "\' failed!\n" 
                 << first_string << " : " << first << "\n"
                 << second_string << " : " << second << "\n";
+        std::terminate();
     }
 
     #define ASSERT_COMPARE(first, operator_symbol, second) do {\
         const auto& first_var = first;\
         const auto& second_var = second;\
         if (!(first_var operator_symbol second_var)) {\
-            loottest::assert_compare_fail(__FILE__, __LINE__, operator_symbol, first_var, second_var, #first, #second);\
+            loottest::assert_compare_fail(__FILE__, __LINE__, #operator_symbol, first_var, second_var, #first, #second);\
         }\
     } while(false)
 
