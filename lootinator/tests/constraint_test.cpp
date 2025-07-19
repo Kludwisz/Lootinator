@@ -5,12 +5,12 @@
 
 void test_single_merge() {
     std::vector<loot::Constraint> constraints1;
-    constraints1.push_back(loot::Constraint{2, 1, 3, 10});
+    constraints1.push_back({2, {1u, 3u}, 10});
     std::vector<loot::Constraint> constraints2;
-    constraints2.push_back(loot::Constraint{2, 2, 5, 7});
+    constraints2.push_back({2, {2u, 5u}, 7});
     loot::merge_contraints(constraints1, constraints2);
     
-    const loot::Constraint target = loot::Constraint{2, 3, 8, loot::UNUSED};
+    const loot::Constraint target = {2, {3u, 8u}, loot::UNUSED};
     const loot::Constraint actual = constraints2.at(0);
     ASSERT_EQ(target, actual);
 }

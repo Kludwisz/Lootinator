@@ -16,7 +16,7 @@ namespace loot {
         RangeInclusive<std::uint32_t> level_range;
 
         bool operator==(const ItemAttribute& other) const {
-            return type == other.type && min_level == other.min_level && max_level == other.max_level;
+            return type == other.type && level_range == other.level_range;
         }
     };
 
@@ -37,12 +37,12 @@ namespace loot {
         }
 
         bool operator==(const Constraint& other) const {
-            return item_equal(other) && other.min_count == min_count && other.max_count == max_count && other.slot_id == slot_id;
+            return item_equal(other) && other.count_range == count_range && other.slot_id == slot_id;
         }
 
         friend std::ostream& operator<<(std::ostream& os, const Constraint& constraint) {
-            os << "Constraint{item=" << constraint.item << ", min=" << constraint.min_count 
-                    << ", max=" << constraint.max_count << ", slot=" << constraint.slot_id << "}";
+            os << "Constraint{item=" << constraint.item << ", min=" << constraint.count_range.min 
+                    << ", max=" << constraint.count_range.max << ", slot=" << constraint.slot_id << "}";
             return os;
         }
     };
