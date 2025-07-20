@@ -9,7 +9,7 @@
 #include <algorithm>
 
 namespace loot {
-    constexpr int32_t UNUSED = -1;
+    constexpr int32_t SLOT_NONE = -1;
 
     struct ItemAttribute {
         std::uint32_t type;
@@ -19,6 +19,25 @@ namespace loot {
             return type == other.type && level_range == other.level_range;
         }
     };
+
+    inline bool attributes_match(const std::vector<ItemAttribute>& first, const std::vector<ItemAttribute>& second) {
+        if (first.size() != second.size())
+            return false;
+
+        for (const auto& e1 : first) {
+            bool found = false;
+            for (const auto& e2 : second) {
+                if (e1.type == e2.type && e1.level_range == e2.level_range) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                return false;
+            }
+        }
+        return true;
+    }
 
     // stores loot constraints on individual slots of items
     struct Constraint {
@@ -33,11 +52,12 @@ namespace loot {
                 return false;
 
             // all item attributes must match
-            return std::equal(attributes.begin(), attributes.begin() + attributes.size(), other.attributes.begin());
+            return loot::attributes_match(attributes, other.attributes);
         }
 
         bool operator==(const Constraint& other) const {
-            return item_equal(other) && other.count_range == count_range && other.slot_id == slot_id;
+            return other.count_range == count_range && other.slot_id == slot_id;
+            //return item_equal(other) && other.count_range == count_range && other.slot_id == slot_id;
         }
 
         friend std::ostream& operator<<(std::ostream& os, const Constraint& constraint) {
@@ -48,23 +68,6 @@ namespace loot {
     };
 
     void merge_contraints(const std::vector<loot::Constraint>& src, std::vector<loot::Constraint>& dest);
-
-    // static bool attributes_match(const std::vector<ItemAttribute>& first, const std::vector<ItemAttribute>& second) {
-    //     for (const auto& e1 : first) {
-    //         bool found = false;
-    //         for (const auto& e2 : second) {
-    //             if (e1.type == e2.type && e1.min_level == e2.min_level && e1.max_level == e2.max_level) {
-    //                 found = true;
-    //                 break;
-    //             }
-    //         }
-    //         if (!found) {
-    //             return false;
-    //         }
-    //     }
-
-    //     return true;
-    // }
 }
 
 #endif

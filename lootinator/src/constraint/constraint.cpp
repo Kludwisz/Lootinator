@@ -7,19 +7,23 @@ namespace loot {
                 // have two item count ranges (min1, max1), (min2, max2)
                 // the new min is min1+min2, new max is max1+max2
                 stored_constraint.count_range = stored_constraint.count_range.merge(constraint.count_range);
-                stored_constraint.slot_id = loot::UNUSED;
+                stored_constraint.slot_id = loot::SLOT_NONE;
                 return;
             }
         }
 
         // did not find the item, create new constraint in the destination vector
         loot::Constraint to_add = constraint;
-        to_add.slot_id = loot::UNUSED;
+        to_add.slot_id = loot::SLOT_NONE;
+        dest.push_back(to_add);
     }
 
     // accumulates the per-slot constraints into per-item-type ones (used by seedfinding kernels)
     // the acculumation takes into accout item enchantments
     void merge_contraints(const std::vector<loot::Constraint>& src, std::vector<loot::Constraint>& dest) {
+        for (auto& constraint : dest) {
+            constraint.slot_id = loot::SLOT_NONE;
+        }
         for (const auto& constraint : src) {
             merge_into(dest, constraint);
         }
