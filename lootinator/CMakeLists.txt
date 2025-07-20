@@ -1,9 +1,11 @@
 add_library(lootinator
-	include/lootinator/lootinator.h
+    include/lootinator/lootinator.h
     include/lootinator/assertions.h
-	include/lootinator/constraint/constraint.h
-	src/lootinator.cpp
-	src/constraint/constraint.cpp
+    include/lootinator/constraint/constraint.h
+    include/lootinator/utility/range.h
+    include/lootinator/utility/debug.h
+    src/lootinator.cpp
+    src/constraint/constraint.cpp
 )
 
 target_include_directories(lootinator PUBLIC include)

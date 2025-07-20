@@ -2,11 +2,11 @@
 #define LOOTINATOR_CONSTRAINT_CONSTRAINT_H
 
 #include "lootinator/utility/range.h"
+#include "lootinator/utility/debug.h"
 
 #include <cstdint>
 #include <vector>
 #include <ostream>
-#include <algorithm>
 
 namespace loot {
     constexpr int32_t SLOT_NONE = -1;
@@ -17,6 +17,13 @@ namespace loot {
 
         bool operator==(const ItemAttribute& other) const {
             return type == other.type && level_range == other.level_range;
+        }
+
+        friend std::ostream& operator<<(std::ostream& os, const ItemAttribute& attribute) {
+            return DebugStruct(os, "ItemAttribute")
+                .add("type", attribute.type)
+                .add("level_range", attribute.level_range)
+                .finish();
         }
     };
 
@@ -61,9 +68,12 @@ namespace loot {
         }
 
         friend std::ostream& operator<<(std::ostream& os, const Constraint& constraint) {
-            os << "Constraint{item=" << constraint.item << ", min=" << constraint.count_range.min 
-                    << ", max=" << constraint.count_range.max << ", slot=" << constraint.slot_id << "}";
-            return os;
+            return DebugStruct(os, "Constraint")
+                .add("item", constraint.item)
+                .add("count_range", constraint.count_range)
+                .add("slot_id", constraint.slot_id)
+                .add("attributes", constraint.attributes)
+                .finish();
         }
     };
 
