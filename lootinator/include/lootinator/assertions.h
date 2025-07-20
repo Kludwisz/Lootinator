@@ -1,10 +1,10 @@
-#ifndef LOOTINATOR_TESTING_ASSERTIONS_H
-#define LOOTINATOR_TESTING_ASSERTIONS_H
+#ifndef LOOTINATOR_ASSERTIONS_H
+#define LOOTINATOR_ASSERTIONS_H
 
 #ifdef _WIN32
-#define LOOTINATOR_EXTERN int __cdecl
+#define LOOTINATOR_EXTERN __cdecl
 #else
-#define LOOTINATOR_EXTERN extern "C" int
+#define LOOTINATOR_EXTERN
 #endif
 
 namespace loottest {
