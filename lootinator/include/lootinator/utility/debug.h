@@ -15,10 +15,8 @@ namespace loot {
         std::ostream* os;
         const char* delim = "";
 
-        DebugArray(std::ostream& os) : os(&os) {
-            os << "[";
-        }
-
+        DebugArray(std::ostream& os);
+        
         template <class T>
         DebugArray& add(const T& value) {
             debug(*os << delim, value);
@@ -26,18 +24,14 @@ namespace loot {
             return *this;
         }
 
-        std::ostream& finish() {
-            return *os << "]";
-        }
+        std::ostream& finish();
     };
 
     struct DebugStruct {
         std::ostream* os;
         const char* delim = "";
 
-        DebugStruct(std::ostream& os, const char* name) : os(&os) {
-            os << name << "{";
-        }
+        DebugStruct(std::ostream& os, const char* name);
 
         template <class T>
         DebugStruct& add(const char* field, const T& value) {
@@ -46,9 +40,7 @@ namespace loot {
             return *this;
         }
 
-        std::ostream& finish() {
-            return *os << "}";
-        }
+        std::ostream& finish();
     };
 
     template <class T>
