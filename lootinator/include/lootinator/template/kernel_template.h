@@ -13,10 +13,11 @@ namespace loot {
         void generatePreamble(std::ostream& out) const;
         void generateLootLookupTable(std::ostream& out) const;
         void generateLootProcessors(std::ostream& out) const;
-        // these generators can be modified by each individual KernelTemplate subclass
+        // these generators can, but may not be modified by each individual KernelTemplate subclass
         virtual void generateKernelHeader(std::ostream& out) const;
-        virtual void generateKernelBody(std::ostream& out) const;
         virtual void generateHostController(std::ostream& out) const;
+        // this generator defines the kernel structure and must be overriden by KernelTemplate subclasses.
+        virtual void generateKernelBody(std::ostream& out) const = 0;
 
     public:
         KernelTemplate(const TemplateParameters& params);
