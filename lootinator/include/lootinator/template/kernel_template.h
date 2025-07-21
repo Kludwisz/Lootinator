@@ -7,6 +7,8 @@
 namespace loot {
     class KernelTemplate : Template {
     protected:
+        static const size_t DEFAULT_RESULT_ARRAY_CAPACITY = 1024 * 1024;
+
         // these generators will be shared by all KernelTemplate objects
         void generatePreamble(std::ostream& out) const;
         void generateLootLookupTable(std::ostream& out) const;
