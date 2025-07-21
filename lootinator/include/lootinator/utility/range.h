@@ -1,6 +1,8 @@
 #ifndef LOOTINATOR_UTILITY_RANGE_H
 #define LOOTINATOR_UTILITY_RANGE_H
 
+#include <nlohmann/json.hpp>
+
 namespace loot {
     template <class T>
     struct RangeInclusive {
@@ -23,6 +25,12 @@ namespace loot {
 
         bool contains(T value) const {
             return value >= min && value <= max;
+        }
+
+        static RangeInclusive from_json(nlohmann::json json) {
+            T min = json["min"];
+            T max = json["max"];
+            return { min, max };
         }
     };
 }

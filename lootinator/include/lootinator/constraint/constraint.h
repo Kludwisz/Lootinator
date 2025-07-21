@@ -3,6 +3,8 @@
 
 #include "lootinator/utility/range.h"
 
+#include <nlohmann/json.hpp>
+
 #include <cstdint>
 #include <vector>
 #include <ostream>
@@ -17,6 +19,12 @@ namespace loot {
 
         bool operator==(const ItemAttribute& other) const {
             return type == other.type && level_range == other.level_range;
+        }
+
+        static ItemAttribute from_json(nlohmann::json json) {
+            uint32_t type = json["type"];
+            loot::RangeInclusive<std::uint32_t> level_range = RangeInclusive<std::uint32_t>::from_json(json["level_range"]);
+            return {type, level_range};
         }
     };
 
@@ -68,6 +76,7 @@ namespace loot {
     };
 
     void merge_contraints(const std::vector<loot::Constraint>& src, std::vector<loot::Constraint>& dest);
+    std::vector<loot::Constraint> parse_constraints_from_json(const char *filepath);
 }
 
 #endif
