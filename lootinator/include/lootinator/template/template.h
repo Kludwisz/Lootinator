@@ -1,5 +1,5 @@
-#ifndef LOOTINATOR_TEMPLATES_TEMPLATE_H
-#define LOOTINATOR_TEMPLATES_TEMPLATE_H
+#ifndef LOOTINATOR_TEMPLATE_TEMPLATE_H
+#define LOOTINATOR_TEMPLATE_TEMPLATE_H
 
 #include "lootinator/constraint/constraint.h"
 #include <string>
@@ -14,7 +14,7 @@ namespace loot {
         //MinecraftVersion version;
     };
 
-    // Template objects are the main 
+    // Template objects are the main building blocks for Lootinator's automated code generation. 
     class Template {
     protected:
         TemplateParameters params;
@@ -26,8 +26,8 @@ namespace loot {
     public:
         Template(const TemplateParameters& params);
 
-        // has to be defined by all subclasses of Template, generates and outputs
-        // the entire piece of code to the out stream.
+        // has to be defined by all subclasses of Template; generates and outputs
+        // the entire piece of code defined by this template to the 'out' stream.
         virtual void generate(std::ostream& out) const = 0;
 
         // returns the result of generate(std::ostream&) as a string.

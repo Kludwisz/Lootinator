@@ -3,7 +3,6 @@
 
 #include "lootinator/utility/debug.h"
 
-#include <iostream>
 
 #ifdef _WIN32
 #define LOOTINATOR_EXTERN __cdecl

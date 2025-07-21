@@ -3,11 +3,13 @@ add_library(lootinator
     include/lootinator/lootinator.h
     include/lootinator/constraint/constraint.h
     include/lootinator/template/template.h
+    include/lootinator/template/kernel_template.h
     include/lootinator/utility/debug.h
     include/lootinator/utility/range.h
     src/lootinator.cpp
     src/constraint/constraint.cpp
-    src/templates/template.cpp
+    src/template/template.cpp
+    src/template/kernel_template.cpp
     src/utility/debug.cpp
 )
 
