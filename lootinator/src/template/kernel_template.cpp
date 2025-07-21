@@ -32,15 +32,15 @@ namespace loot {
         out <<  "#define GPU_ASSERT(code) gpuAssert((code), __FILE__, __LINE__)\n"
                 "inline void gpuAssert(cudaError_t code, const char* file, int line) {\n"
                 "    if (code != cudaSuccess) {\n"
-                "        fprintf(stderr, \"GPU ERROR: %s (code %d) in file %s, line %d\n\", cudaGetErrorString(code), code, file, line);\n"
-                "        exit(code);\n"
+                "        std::fprintf(stderr, \"GPU ERROR: %s (code %d) in file %s, line %d\n\", cudaGetErrorString(code), code, file, line);\n"
+                "        std::exit(code);\n"
                 "    }\n"
                 "}\n\n";
 
         // 3. __managed__ memory storage for found loot seeds.
         out <<  "constexpr size_t RESULT_ARRAY_CAPACITY = " << KernelTemplate::DEFAULT_RESULT_ARRAY_CAPACITY << "\n"
                 "__managed__ uint64_t results[RESULT_ARRAY_CAPACITY];\n"
-                "__managed__ uint32_t resultCount;\n\n";
+                "__managed__ uint32_t resultCount = 0;\n\n";
 
         // 4. __device__ PRNG functions.
         // TODO there's going to be a lot of PRNG code to be added here; 
