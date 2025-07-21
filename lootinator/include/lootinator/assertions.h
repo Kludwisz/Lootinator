@@ -1,18 +1,22 @@
-#ifndef LOOTINATOR_TESTING_ASSERTIONS_H
-#define LOOTINATOR_TESTING_ASSERTIONS_H
+#ifndef LOOTINATOR_ASSERTIONS_H
+#define LOOTINATOR_ASSERTIONS_H
+
+#include "lootinator/utility/debug.h"
+
+#include <iostream>
 
 #ifdef _WIN32
-#define LOOTINATOR_EXTERN int __cdecl
+#define LOOTINATOR_EXTERN __cdecl
 #else
-#define LOOTINATOR_EXTERN extern "C" int
+#define LOOTINATOR_EXTERN
 #endif
 
-namespace loottest {
+namespace loot {
     template <class T, class U>
     void assert_compare_fail(const char* file, int line, const char* operator_symbol, const T& first, const U& second, const char* first_string, const char* second_string) {
-        std::cerr << file << ":" << line << "\nAssertion \'" << operator_symbol << "\' failed!\n" 
-                << first_string << " : " << first << "\n"
-                << second_string << " : " << second << "\n";
+        std::cerr << file << ":" << line << "\nAssertion \'" << operator_symbol << "\' failed!\n";
+        debug(std::cerr << first_string << " : ", first) << "\n";
+        debug(std::cerr << second_string << " : ", second) << "\n";
         std::terminate();
     }
 
@@ -20,7 +24,7 @@ namespace loottest {
         const auto& first_var = first;\
         const auto& second_var = second;\
         if (!(first_var operator_symbol second_var)) {\
-            loottest::assert_compare_fail(__FILE__, __LINE__, #operator_symbol, first_var, second_var, #first, #second);\
+            loot::assert_compare_fail(__FILE__, __LINE__, #operator_symbol, first_var, second_var, #first, #second);\
         }\
     } while(false)
 

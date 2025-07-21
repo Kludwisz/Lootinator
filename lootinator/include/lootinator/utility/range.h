@@ -2,6 +2,7 @@
 #define LOOTINATOR_UTILITY_RANGE_H
 
 #include <nlohmann/json.hpp>
+#include "lootinator/utility/debug.h"
 
 namespace loot {
     template <class T>
@@ -31,6 +32,13 @@ namespace loot {
             T min = json["min"];
             T max = json["max"];
             return { min, max };
+        }
+            
+        friend std::ostream& operator<<(std::ostream& os, const RangeInclusive& range) {
+            return DebugStruct(os, "RangeInclusive")
+                .add("min", range.min)
+                .add("max", range.max)
+                .finish();
         }
     };
 }

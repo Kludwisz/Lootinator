@@ -73,7 +73,7 @@ void test_multi_merge() {
     ASSERT_EQ(equal_els, 3);
 }
 
-LOOTINATOR_EXTERN tests_constraint_test(int argc, char** const argv) {
+int LOOTINATOR_EXTERN tests_constraint_test(int argc, char** const argv) {
     test_single_merge();
     test_multi_merge();
 
