@@ -4,12 +4,13 @@ namespace loot {
     KernelTemplate::KernelTemplate(const TemplateParameters& params) : Template(params) {}
 
     void KernelTemplate::generate(std::ostream& out) const {
-        generatePreamble(out);
-        generateLootLookupTable(out);
-        generateLootProcessors(out);
-        generateKernelHeader(out);
-        generateKernelBody(out);
-        generateHostController(out);
+        generate_preamble(out);
+        generate_loot_lookup_table(out);
+        generate_loot_processors(out);
+        generate_kernel_header(out);
+        generate_kernel_body(out);
+        generate_kernel_launch_information(out);
+        generate_host_controller(out);
     }
 
     // Generates a preamble containing code that will be shared by
@@ -18,14 +19,14 @@ namespace loot {
     // 2. GPU error handling macro 
     // 3. __managed__ memory storage for found loot seeds.
     // 4. __device__ PRNG functions for Java Random (Xoroshiro support can come in the future).
-    void KernelTemplate::generatePreamble(std::ostream& out) const {
+    void KernelTemplate::generate_preamble(std::ostream& out) const {
         // 1. Includes for common CUDA / C++ headers.
         out <<  "#include \"cuda_runtime.h\"\n"
                 "#include \"device_launch_parameters.h\"\n"
                 "#include <cinttypes>\n"
                 "#include <cstdlib>\n"
                 "#include <cstdint>\n"
-                "#include <cstdio>\n"
+                "#include <ostream>\n"
                 "#include <chrono>\n\n";
 
         // 2. GPU error handling macro.
@@ -49,26 +50,52 @@ namespace loot {
                 "__device__ inline float nextFloat(uint64_t* rand){ return next(rand, 24) / (float)(1 << 24); }\n\n";
     }
 
-    void KernelTemplate::generateLootLookupTable(std::ostream& out) const {
+    void KernelTemplate::generate_loot_lookup_table(std::ostream& out) const {
         // TODO
         // Copy the precomputed loot table entry indices and place them in device (or managed) memory
     }
 
-    void KernelTemplate::generateLootProcessors(std::ostream& out) const {
+    void KernelTemplate::generate_loot_processors(std::ostream& out) const {
         // TODO
         // Based on the loot functions listed in the computed loot table, generate CUDA
         // __device__ function representations of all the functions.
     }
 
-    void KernelTemplate::generateKernelHeader(std::ostream& out) const {
+    void KernelTemplate::generate_kernel_header(std::ostream& out) const {
         // TODO
         // Generate a kernel header - create unique thread index, copy necessary data to __shared__ memory.
         // Which of the data used by kernels should get copied to shared memory like this?
     }
 
-    void KernelTemplate::generateHostController(std::ostream& out) const {
+    void KernelTemplate::generate_kernel_launch_information(std::ostream& out) const {
+        out <<  "constexpr uint32_t NUM_BATCHES = 1U << 16;\n"
+                "constexpr uint64_t THREADS_PER_BATCH = 1ULL << 32;\n"
+                "constexpr uint32_t THREADS_PER_BLOCK = 256;\n"
+                "constexpr uint32_t NUM_BLOCKS = THREADS_PER_BATCH / THREADS_PER_BLOCK;\n";
+    }
+
+    void KernelTemplate::generate_host_controller(std::ostream& out) const {
         // TODO
         // Generate host-side code for launching the kernel in approppriate batches. The host controller
         // will provide users program state and progress information. 
+
+        out <<  "int main() {\n"
+                "    GPU_ASSERT(cudaSetDevice(0));\n"
+                "    for (uint32_t batch_no = 0; batch_no < NUM_BATCHES) {\n"
+                "        const auto t1 = std::chrono::steady_clock::now();\n"
+                "        " << kernel_name << " <<<NUM_BLOCKS, THREADS_PER_BLOCK>>> (THREADS_PER_BATCH * batch_no);\n"
+                "        GPU_ASSERT(cudaDeviceSynchronize());\n"
+                "        for (uint32_t i = 0; i < result_count; i++) {\n"
+                "            std::cout << results[i] << \'\n\';\n"
+                "        }\n"
+                "        std::cout << std::flush;\n"
+                "        const auto t2 = std::chrono::steady_clock::now();\n"
+                "        const auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);\n"
+                "        const double eta_minutes = (double)elapsed_ms * (NUM_BATCHES - 1 - batch_no) / 60000.0;\n"
+                "        std::cerr << \"ETA: \" << eta_minutes << \" minutes. Tasks done: \" << (batch_no+1) << \"/\" << (NUM_BATCHES+1) << std::endl;\n";
+                "    }\n"
+                "    GPU_ASSERT(cudaDeviceReset());\n"
+                "    return 0;\n"
+                "}\n";
     }
 }

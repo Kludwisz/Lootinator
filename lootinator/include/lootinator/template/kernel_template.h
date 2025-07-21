@@ -9,15 +9,18 @@ namespace loot {
     protected:
         static const size_t DEFAULT_RESULT_ARRAY_CAPACITY = 1024 * 1024;
 
+        std::string kernel_name;
+
         // these generators will be shared by all KernelTemplate objects
-        void generatePreamble(std::ostream& out) const;
-        void generateLootLookupTable(std::ostream& out) const;
-        void generateLootProcessors(std::ostream& out) const;
+        void generate_preamble(std::ostream& out) const;
+        void generate_loot_lookup_table(std::ostream& out) const;
+        void generate_loot_processors(std::ostream& out) const;
         // these generators can, but may not be modified by each individual KernelTemplate subclass
-        virtual void generateKernelHeader(std::ostream& out) const;
-        virtual void generateHostController(std::ostream& out) const;
+        virtual void generate_kernel_header(std::ostream& out) const;
+        virtual void generate_kernel_launch_information(std::ostream &out) const;
+        virtual void generate_host_controller(std::ostream &out) const;
         // this generator defines the kernel structure and must be overriden by KernelTemplate subclasses.
-        virtual void generateKernelBody(std::ostream& out) const = 0;
+        virtual void generate_kernel_body(std::ostream& out) const = 0;
 
     public:
         KernelTemplate(const TemplateParameters& params);
