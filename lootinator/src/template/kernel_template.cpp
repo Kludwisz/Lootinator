@@ -67,6 +67,8 @@ namespace loot {
         // Which of the data used by kernels should get copied to shared memory like this?
     }
 
+    // Generates kernel configuration constants, such as the number of threads per block,
+    // or number of batches in the entire seedspace.
     void KernelTemplate::generate_kernel_launch_information(std::ostream& out) const {
         out <<  "constexpr uint32_t NUM_BATCHES = 1U << 16;\n"
                 "constexpr uint64_t THREADS_PER_BATCH = 1ULL << 32;\n"
@@ -74,11 +76,9 @@ namespace loot {
                 "constexpr uint32_t NUM_BLOCKS = THREADS_PER_BATCH / THREADS_PER_BLOCK;\n";
     }
 
+    // Generates host-side code for launching the kernel in approppriate batches. 
+    // The controller additionally provides progress information and estimated time of completion. 
     void KernelTemplate::generate_host_controller(std::ostream& out) const {
-        // TODO
-        // Generate host-side code for launching the kernel in approppriate batches. The host controller
-        // will provide users program state and progress information. 
-
         out <<  "int main() {\n"
                 "    GPU_ASSERT(cudaSetDevice(0));\n"
                 "    for (uint32_t batch_no = 0; batch_no < NUM_BATCHES) {\n"
