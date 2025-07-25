@@ -1,0 +1,1 @@
+./launcher --kernel-name "test_kernel" --kernel-source "test_kernel_source.txt" --shared-memory "test_shared_memory.txt" --threads-total 4294967296 --threads-per-batch 4294967296

@@ -1,0 +1,12 @@
+extern "C" {
+    typedef unsigned long long u64;
+    typedef unsigned int u32;
+
+    __global__ void test_kernel(
+        u64* result_array, u32* result_count, 
+        u32* shared_mem_contents, u32 shared_mem_contents_length, 
+        u64 offset)
+    {
+        int tid = threadIdx.x;
+    }
+}

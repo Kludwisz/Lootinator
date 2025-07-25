@@ -5,7 +5,9 @@ and launches that as a kernel with additional (user-provided?)
 parameters, such as # of threads, device ID, etc.
 */
 
-#include <cuda.h> // driver API
+#include <cuda.h>  // driver API
+#include <nvrtc.h> // runtime compilation API
+
 #include <cstdint>
 #include <cinttypes>
 #include <cstring>
@@ -32,6 +34,14 @@ namespace launcher {
         }
     }
 
+    #define NVRTC_CHECK(ans) { launcher::nvrtcAssert((ans), __FILE__, __LINE__); }
+    void nvrtcAssert(nvrtcResult res, const char* file, int line) {
+        if (res != NVRTC_SUCCESS) {
+            std::cerr << "NVRTC error: " << nvrtcGetErrorString(res) << " at " << file << ":" << line << std::endl;
+            exit(1);
+        }
+    }
+
     struct LaunchParameters {
         // internal
         std::string kernel_name;
@@ -49,12 +59,9 @@ namespace launcher {
         int32_t end_batch;
     };
 
+    // Uses cuda driver api to turn the provided parameters into a functional kernel and launches it.
     int launch_kernel(const LaunchParameters& config) {
-        // TODO
-        // Use cuda driver api to turn the bunch of provided parameters
-        // into a functional kernel, then launch it with the provided
-        // configuration parameters.
-
+        // assert that grid size is ok
         const uint32_t n_blocks = static_cast<uint32_t>(config.threads_per_batch / config.threads_per_block);
         const uint64_t n_blocks_long = config.threads_per_batch / config.threads_per_block;
         if (static_cast<uint64_t>(n_blocks) != n_blocks_long) {
@@ -117,20 +124,31 @@ namespace launcher {
         return 0;
     }
 
-    int read_ptx(const char* ptx_filename, LaunchParameters& config) {
-        std::ifstream file(ptx_filename);
+    int compile_nvrtc(const char* source_filename, LaunchParameters& config) {
+        std::ifstream file(source_filename);
         if (!file) {
-            std::cerr << "Fatal error (read_ptx): Failed to open file '" << ptx_filename << "'." << std::endl;
+            std::cerr << "Fatal error (compile_nvrtc): Failed to open source code file '" << source_filename << "'." << std::endl;
             return 1;
         }
 
         std::ostringstream ss;
         ss << file.rdbuf();
         if (file.fail() && !file.eof()) {
-            std::cerr << "Fatal error (read_ptx): Failed while reading file '" << ptx_filename << "'." << std::endl;
+            std::cerr << "Fatal error (compile_nvrtc): Failed while reading source code file '" << source_filename << "'." << std::endl;
             return 1;
         }
-        config.kernel_ptx = ss.str();
+        std::string kernel_source = ss.str();
+
+        nvrtcProgram prog;
+        NVRTC_CHECK(nvrtcCreateProgram(&prog, kernel_source.c_str(), "internal.cu", 0, nullptr, nullptr));
+        NVRTC_CHECK(nvrtcCompileProgram(prog, 0, nullptr));
+        size_t ptxSize;
+        NVRTC_CHECK(nvrtcGetPTXSize(prog, &ptxSize));
+        std::string ptx(ptxSize, '\0');
+        NVRTC_CHECK(nvrtcGetPTX(prog, &ptx[0]));
+        nvrtcDestroyProgram(&prog);
+
+        config.kernel_ptx = ptx;
         return 0;
     }
 
@@ -156,8 +174,8 @@ namespace launcher {
                 config.kernel_name = std::string(argv[i+1]);
                 have_name = true;
             }
-            else if (strcmp(argv[i], "--kernel-ptx") == 0) {
-                if (read_ptx(argv[i+1], config))
+            else if (strcmp(argv[i], "--kernel-source") == 0) {
+                if (compile_nvrtc(argv[i+1], config))
                     return 1;
                 have_ptx = true;
             }
@@ -212,7 +230,7 @@ int main(int argc, char** argv) {
     };
 
     if (launcher::parse_args(argc, argv, config)) {
-        std::cerr << "Fatal error: kernel name or PTX file invalid or not provided." << std::endl;
+        std::cerr << "Fatal error: kernel name or source code file missing or invalid." << std::endl;
         return 1;
     }
 
@@ -222,7 +240,7 @@ int main(int argc, char** argv) {
         config.start_batch = 0;
     }
     const int32_t end_exclusive = (config.threads_total + config.threads_per_batch - 1) / config.threads_per_batch;
-    if (config.start_batch == launcher::UNSPECIFIED || config.end_batch > end_exclusive) {
+    if (config.end_batch == launcher::UNSPECIFIED || config.end_batch > end_exclusive) {
         std::cerr << "End batch unspecified or too large, defaulting to end-batch=" << end_exclusive << std::endl;
         config.end_batch = end_exclusive;
     }
