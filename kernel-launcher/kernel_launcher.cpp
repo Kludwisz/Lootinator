@@ -70,7 +70,7 @@ namespace launcher {
         CUmodule module;
         CUDA_CHECK(cuModuleLoadData(&module, config.kernel_ptx.c_str()));
         CUfunction kernel;
-        CUDA_CHECK(cuModuleGetFunction(&kernel, module, config.kernel_name));
+        CUDA_CHECK(cuModuleGetFunction(&kernel, module, config.kernel_name.c_str()));
 
         CUdeviceptr d_result_array, d_result_count;
         CUdeviceptr d_shared_mem_contents, d_shared_mem_contents_length;
@@ -84,7 +84,7 @@ namespace launcher {
 
         for (int32_t batch = config.start_batch; batch < config.end_batch; batch++) {
             // __global__ kernel_name(u64* result_array, u32* result_count, u32* shared_mem_contents, u32 shared_mem_contents_length, u64 offset)
-            const uint64_t thread_offset = batch * config.threads_per_batch;
+            uint64_t thread_offset = batch * config.threads_per_batch;
             void* kernel_args[] = {
                 &d_result_array,
                 &d_result_count,
