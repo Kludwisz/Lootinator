@@ -9,7 +9,7 @@
 namespace loot {
     struct TemplateParameters {
         std::vector<loot::Constraint> constraints;
-        std::map<std::string, uint32_t> itemname_to_id;
+        std::map<std::string, uint32_t> itemname_to_id; // TODO maybe reverse mapping and use a vector instead?
         //LootTable loot_table;
         //MinecraftVersion version;
     };
@@ -17,7 +17,7 @@ namespace loot {
     // Template objects are the main building blocks for Lootinator's automated code generation. 
     class Template {
     protected:
-        TemplateParameters params;
+        const TemplateParameters& params;
         // here is the right spot for helper functions shared by subclasses of Template:
         // - add array of constants to memory: either CPU, global, global-shared, managed, or constant 
         // - save loot seed result

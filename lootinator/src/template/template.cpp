@@ -4,9 +4,7 @@
 
 
 namespace loot {
-    Template::Template(const TemplateParameters &params) {
-        this->params = params;
-    }
+    Template::Template(const TemplateParameters &params) : params(params) {}
 
     std::string Template::generate() const {
         std::ostringstream oss;
