@@ -26,7 +26,7 @@ namespace launcher {
 
     constexpr i32 UNSPECIFIED = -1;
     constexpr u32 RESULT_BUFFER_SIZE = 16u * 1024u; // max results per kernel launch
-    //constexpr u32 SHARED_MEM_SIZE = 1024u * 4u;
+    //constexpr u32 SHARED_MEM_SIZE = 1024u * 4u;   // deprecated, shared memory size determined at runtime
 
     #define CUDA_CHECK(ans) { launcher::gpuAssert((ans), __FILE__, __LINE__); }
     void gpuAssert(CUresult code, const char *file, int line) {
@@ -188,23 +188,32 @@ namespace launcher {
         return 0;
     }
 
+    // bad code but it works
     int parse_args(int argc, char** argv, LaunchParameters& config) {
         bool have_name = false, have_ptx = false, have_shared = false;
 
-        for (int i = 1; i < argc-1; i++) {
+        for (int i = 1; i < argc; i++) {
+            if (strcmp(argv[i], "--debug") == 0) {
+                config.debug_info = true;
+            }
+            if (i >= argc-1) break;
+            
             if (strcmp(argv[i], "--kernel-name") == 0) {
                 config.kernel_name = std::string(argv[i+1]);
                 have_name = true;
+                i++;
             }
             else if (strcmp(argv[i], "--kernel-source") == 0) {
                 if (compile_nvrtc(argv[i+1], config))
                     return 1;
                 have_ptx = true;
+                i++;
             }
             else if (strcmp(argv[i], "--shared-memory") == 0) {
                 if (read_shared_memory(argv[i+1], config))
                     return 1;
                 have_shared = true;
+                i++;
             }
             else if (strcmp(argv[i], "--threads-total") == 0) {
                 sscanf(argv[i+1], "%llu", &(config.threads_total));
@@ -229,9 +238,6 @@ namespace launcher {
             else if (strcmp(argv[i], "--end-batch") == 0) {
                 sscanf(argv[i+1], "%d", &(config.end_batch));
                 i++;
-            }
-            else if (strcmp(argv[i], "--debug") == 0) {
-                config.debug_info = true;
             }
         }
 
