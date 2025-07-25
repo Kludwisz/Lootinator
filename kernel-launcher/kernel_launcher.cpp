@@ -25,8 +25,8 @@ namespace launcher {
     typedef int i32;
 
     constexpr i32 UNSPECIFIED = -1;
-    constexpr u32 RESULT_BUFFER_SIZE = 16u * 1024u;
-    constexpr u32 SHARED_MEM_SIZE = 1024u * 4u;
+    constexpr u32 RESULT_BUFFER_SIZE = 16u * 1024u; // max results per kernel launch
+    //constexpr u32 SHARED_MEM_SIZE = 1024u * 4u;
 
     #define CUDA_CHECK(ans) { launcher::gpuAssert((ans), __FILE__, __LINE__); }
     void gpuAssert(CUresult code, const char *file, int line) {
@@ -61,6 +61,7 @@ namespace launcher {
         // non-kernel
         i32 start_batch;
         i32 end_batch;
+        bool debug_info;
     };
 
     // Uses cuda driver api to turn the provided parameters into a functional kernel and launches it.
@@ -96,7 +97,8 @@ namespace launcher {
         CUDA_CHECK(cuMemcpyHtoD(d_shared_mem_contents, h_shared_mem_contents, h_shared_mem_contents_length * sizeof(u32)));
 
         for (i32 batch = config.start_batch; batch < config.end_batch; batch++) {
-            std::cerr << "Info: Running batch #" << batch << " of range [" << config.start_batch << ", " << config.end_batch << ")" << std::endl;
+            if (config.debug_info)
+                std::cerr << "Info: Running batch #" << batch << " of range [" << config.start_batch << ", " << config.end_batch << ")" << std::endl;
             
             // reset result buffer
             u32 h_result_count = 0;
@@ -130,6 +132,8 @@ namespace launcher {
                 std::cout << h_result_array[i] << '\n';
             }
             std::cout << std::flush;
+            if (config.debug_info)
+                std::cerr << h_result_count << " results.\n";
         }
 
         // Cleanup
@@ -226,6 +230,9 @@ namespace launcher {
                 sscanf(argv[i+1], "%d", &(config.end_batch));
                 i++;
             }
+            else if (strcmp(argv[i], "--debug") == 0) {
+                config.debug_info = true;
+            }
         }
 
         return (have_ptx && have_name && have_shared) ? 0 : 1;
@@ -244,7 +251,8 @@ int main(int argc, char** argv) {
         256, // threads per block
         0,   // device id
         launcher::UNSPECIFIED, // (optional) start batch
-        launcher::UNSPECIFIED  // (optional) end batch
+        launcher::UNSPECIFIED, // (optional) end batch
+        false // whether to print debug info
     };
 
     if (launcher::parse_args(argc, argv, config)) {
@@ -254,13 +262,15 @@ int main(int argc, char** argv) {
 
     // calculate or keep provided start and end batches.
     if (config.start_batch == launcher::UNSPECIFIED || config.start_batch < 0) {
-        std::cerr << "Start batch unspecified or too small, defaulting to start-batch=0" << std::endl;
+        if (config.debug_info)
+            std::cerr << "Start batch unspecified or too small, defaulting to start-batch=0" << std::endl;
         config.start_batch = 0;
     }
 
     launcher::i32 end_exclusive = (config.threads_total + config.threads_per_batch - 1) / config.threads_per_batch;
     if (config.end_batch == launcher::UNSPECIFIED || config.end_batch > end_exclusive) {
-        std::cerr << "End batch unspecified or too large, defaulting to end-batch=" << end_exclusive << std::endl;
+        if (config.debug_info)
+            std::cerr << "End batch unspecified or too large, defaulting to end-batch=" << end_exclusive << std::endl;
         config.end_batch = end_exclusive;
     }
 
