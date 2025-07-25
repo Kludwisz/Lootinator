@@ -7,16 +7,19 @@ extern "C" {
         u32* shared_mem_contents, u32 shared_mem_contents_length, 
         u64 offset)
     {
-        extern __shared__ u32 loot_data[];
-        for (int i = threadIdx.x; i < shared_mem_contents_length; i += blockDim.x) {
-            loot_data[i] = shared_mem_contents[i];
+        extern __shared__ u32 data[];
+
+        if (threadIdx.x < shared_mem_contents_length) {
+            for (int i = threadIdx.x; i < shared_mem_contents_length; i += blockDim.x) {
+                data[i] = shared_mem_contents[i];
+            }
         }
         __syncthreads();
 
         const u64 tid = blockIdx.x * blockDim.x + threadIdx.x + offset;
-        if (tid & 0x01000000ULL) {
+        if ((tid & 0x3FFFFFFF) == 0) {
             u32 ix = atomicAdd(result_count, 1);
-            result_array[ix] = shared_mem_contents_length;
+            result_array[ix] = tid;
         }
     }
 }

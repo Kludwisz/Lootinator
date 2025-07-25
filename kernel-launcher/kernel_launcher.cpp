@@ -21,12 +21,12 @@ namespace launcher {
     // in nvrtc-compiled code, the stdint.h header is not directly available, 
     // so this approach should be better for portability across standard systems
     typedef unsigned long long u64;
-    typedef u32 u32;
+    typedef unsigned int u32;
     typedef int i32;
 
     constexpr i32 UNSPECIFIED = -1;
     constexpr u32 RESULT_BUFFER_SIZE = 16u * 1024u;
-    constexpr u32 SHARED_MEM_SIZE = 8u * 1024u;
+    constexpr u32 SHARED_MEM_SIZE = 1024u * 4u;
 
     #define CUDA_CHECK(ans) { launcher::gpuAssert((ans), __FILE__, __LINE__); }
     void gpuAssert(CUresult code, const char *file, int line) {
@@ -50,7 +50,7 @@ namespace launcher {
         // internal
         std::string kernel_name;
         std::string kernel_ptx;
-        std::vector<int> kernel_shared_memory;
+        std::vector<u32> kernel_shared_memory;
         u64 threads_total;
         u64 threads_per_batch;
 
@@ -83,19 +83,17 @@ namespace launcher {
         CUfunction kernel;
         CUDA_CHECK(cuModuleGetFunction(&kernel, module, config.kernel_name.c_str()));
 
+        u64 h_result_array[RESULT_BUFFER_SIZE];
         CUdeviceptr d_result_array, d_result_count;
-        CUdeviceptr d_shared_mem_contents, d_shared_mem_contents_length;
         CUDA_CHECK(cuMemAlloc(&d_result_array, RESULT_BUFFER_SIZE * sizeof(u64)));
         CUDA_CHECK(cuMemAlloc(&d_result_count, sizeof(u32)));
+
+        CUdeviceptr d_shared_mem_contents;
         CUDA_CHECK(cuMemAlloc(&d_shared_mem_contents, config.kernel_shared_memory.size() * sizeof(u32)));
-        CUDA_CHECK(cuMemAlloc(&d_shared_mem_contents_length, sizeof(u32)));
 
-        u32  h_shared_mem_contents_length = config.kernel_shared_memory.size();
-        u32* h_shared_mem_contents = config.kernel_shared_memory.data();
-        CUDA_CHECK(cuMemcpyHtoD(d_shared_mem_contents_length, &h_shared_mem_contents_length, sizeof(u32)));
-        CUDA_CHECK(cuMemcpyHtoD(d_shared_mem_contents, &h_shared_mem_contents, h_shared_mem_contents_length * sizeof(u32)));
-
-        u64 h_result_array[RESULT_BUFFER_SIZE];
+        u32 h_shared_mem_contents_length = config.kernel_shared_memory.size();
+        const u32* h_shared_mem_contents = config.kernel_shared_memory.data();
+        CUDA_CHECK(cuMemcpyHtoD(d_shared_mem_contents, h_shared_mem_contents, h_shared_mem_contents_length * sizeof(u32)));
 
         for (i32 batch = config.start_batch; batch < config.end_batch; batch++) {
             std::cerr << "Info: Running batch #" << batch << " of range [" << config.start_batch << ", " << config.end_batch << ")" << std::endl;
@@ -106,18 +104,19 @@ namespace launcher {
             
             // __global__ kernel_name(u64* result_array, u32* result_count, u32* shared_mem_contents, u32 shared_mem_contents_length, u64 offset)
             u64 thread_offset = batch * config.threads_per_batch;
+            u32 shared_mem_bytes = h_shared_mem_contents_length * sizeof(u32);
             void* kernel_args[] = {
                 &d_result_array,
                 &d_result_count,
                 &d_shared_mem_contents,
-                &d_shared_mem_contents_length,
+                &h_shared_mem_contents_length,
                 &thread_offset
             };
             CUDA_CHECK(cuLaunchKernel(
                 kernel,
                 n_blocks, 1, 1, // grid size
                 config.threads_per_block, 1, 1, // block size
-                launcher::SHARED_MEM_SIZE,
+                shared_mem_bytes,
                 NULL, // use current context to launch
                 kernel_args,
                 NULL // no extra parameters
@@ -125,8 +124,8 @@ namespace launcher {
             CUDA_CHECK(cuCtxSynchronize());
 
             // copy results back to host, print to stdout
-            CUDA_CHECK(cuMemcpyDtoH(d_result_count, &h_result_count, sizeof(u32)));
-            CUDA_CHECK(cuMemcpyDtoH(d_result_array, &h_result_array, h_result_count * sizeof(u64)));
+            CUDA_CHECK(cuMemcpyDtoH(&h_result_count, d_result_count, sizeof(u32)));
+            CUDA_CHECK(cuMemcpyDtoH(h_result_array, d_result_array, h_result_count * sizeof(u64)));
             for (u32 i = 0; i < h_result_count; i++) {
                 std::cout << h_result_array[i] << '\n';
             }
@@ -137,7 +136,6 @@ namespace launcher {
         cuMemFree(d_result_array);
         cuMemFree(d_result_count);
         cuMemFree(d_shared_mem_contents);
-        cuMemFree(d_shared_mem_contents_length);
         cuModuleUnload(module);
         cuCtxDestroy(context);
 
@@ -240,7 +238,7 @@ int main(int argc, char** argv) {
     launcher::LaunchParameters config {
         std::string(), // kernel_name
         std::string(), // kernel_ptx
-        std::vector<u32>(), // kernel_shared_memory
+        std::vector<launcher::u32>(), // kernel_shared_memory
         1ull << 48, // threads_total
         1ull << 32, // threads_per_batch
         256, // threads per block
@@ -259,7 +257,8 @@ int main(int argc, char** argv) {
         std::cerr << "Start batch unspecified or too small, defaulting to start-batch=0" << std::endl;
         config.start_batch = 0;
     }
-    const i32 end_exclusive = (config.threads_total + config.threads_per_batch - 1) / config.threads_per_batch;
+
+    launcher::i32 end_exclusive = (config.threads_total + config.threads_per_batch - 1) / config.threads_per_batch;
     if (config.end_batch == launcher::UNSPECIFIED || config.end_batch > end_exclusive) {
         std::cerr << "End batch unspecified or too large, defaulting to end-batch=" << end_exclusive << std::endl;
         config.end_batch = end_exclusive;
