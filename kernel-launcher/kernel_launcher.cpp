@@ -98,7 +98,7 @@ namespace launcher {
 
         for (i32 batch = config.start_batch; batch < config.end_batch; batch++) {
             if (config.debug_info)
-                std::cerr << "Info: Running batch #" << batch << " of range [" << config.start_batch << ", " << config.end_batch << ")" << std::endl;
+                std::cerr << "Debug: Running batch #" << batch << " of range [" << config.start_batch << ", " << config.end_batch << ")" << std::endl;
             
             // reset result buffer
             u32 h_result_count = 0;
@@ -133,7 +133,7 @@ namespace launcher {
             }
             std::cout << std::flush;
             if (config.debug_info)
-                std::cerr << h_result_count << " results.\n";
+                std::cerr << "Debug: " << h_result_count << " results.\n";
         }
 
         // Cleanup
