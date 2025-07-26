@@ -1,8 +1,11 @@
 /*
 This file will be compiled as a standalone application.
-It's going to be an executable that reads PTX code obtained using nvrtc
-and launches that as a kernel with additional (user-provided?)
-parameters, such as # of threads, device ID, etc.
+It's going to be an multi-feature executable that will enable:
+- automated benchmarking of a provided list of kernels (core feature)
+- launching any single kernel with provided parameters (feature of simple launcher)
+- exporting either a single kernel or a fully automated benchmark-based
+  kernel runner as CUDA source files (additional feature, for remote computing)
+- (extra) launching any single kernel with workload split evenly(?) across several GPUs
 */
 
 #include <cuda.h>  // driver API
@@ -26,7 +29,6 @@ namespace launcher {
 
     constexpr i32 UNSPECIFIED = -1;
     constexpr u32 RESULT_BUFFER_SIZE = 16u * 1024u; // max results per kernel launch
-    //constexpr u32 SHARED_MEM_SIZE = 1024u * 4u;   // deprecated, shared memory size determined at runtime
 
     #define CUDA_CHECK(ans) { launcher::gpuAssert((ans), __FILE__, __LINE__); }
     void gpuAssert(CUresult code, const char *file, int line) {
@@ -46,6 +48,18 @@ namespace launcher {
         }
     }
 
+    enum AppMode {
+        NONE,
+        BENCHMARK,
+        RUN_SINGLE
+    }
+
+    struct AppParameters {
+        AppMode mode;
+        bool debug_info;
+        bool generate_cuda_source;
+    }
+
     struct LaunchParameters {
         // internal
         std::string kernel_name;
@@ -61,7 +75,6 @@ namespace launcher {
         // non-kernel
         i32 start_batch;
         i32 end_batch;
-        bool debug_info;
     };
 
     // Uses cuda driver api to turn the provided parameters into a functional kernel and launches it.
@@ -189,59 +202,52 @@ namespace launcher {
     }
 
     // bad code but it works
-    int parse_args(int argc, char** argv, LaunchParameters& config) {
-        bool have_name = false, have_ptx = false, have_shared = false;
+    int parse_args(int argc, char** argv, AppParameters& app_params, std::vector<LaunchParameters>& launch_params) {
+        // default app config
+        app_config.mode = AppMode::NONE;
+        app_config.debug_info = false;
+        app_config.generate_cuda_source = false;
 
         for (int i = 1; i < argc; i++) {
+            // flag args
             if (strcmp(argv[i], "--debug") == 0) {
-                config.debug_info = true;
+                app_config.debug_info = true;
+            }
+            else if (strcmp(argv[i], "--get-cuda-source") == 0) {
+                app_config.generate_cuda_source = true;
+            }
+            else if (strcmp(argv[i], "--benchmark") == 0) {
+                if (app_params.mode != AppMode::NONE) {
+                    std::cerr << "Illegal args: --benchmark and --run-single cannot be specified at once!\n";
+                    return 1;
+                }
+                app_params.mode = AppMode::BENCHMARK;
+            }
+            else if (strcmp(argv[i], "--run-single") == 0) {
+                if (app_params.mode != AppMode::NONE) {
+                    std::cerr << "Illegal args: --benchmark and --run-single cannot be specified at once!\n";
+                    return 1;
+                }
+                app_params.mode = AppMode::RUN_SINGLE;
             }
             if (i >= argc-1) break;
             
-            if (strcmp(argv[i], "--kernel-name") == 0) {
-                config.kernel_name = std::string(argv[i+1]);
-                have_name = true;
-                i++;
-            }
-            else if (strcmp(argv[i], "--kernel-source") == 0) {
-                if (compile_nvrtc(argv[i+1], config))
-                    return 1;
-                have_ptx = true;
-                i++;
-            }
-            else if (strcmp(argv[i], "--shared-memory") == 0) {
-                if (read_shared_memory(argv[i+1], config))
-                    return 1;
-                have_shared = true;
-                i++;
-            }
-            else if (strcmp(argv[i], "--threads-total") == 0) {
-                sscanf(argv[i+1], "%llu", &(config.threads_total));
-                i++;
-            }
-            else if (strcmp(argv[i], "--threads-per-batch") == 0) {
-                sscanf(argv[i+1], "%llu", &(config.threads_per_batch));
-                i++;
-            }
-            else if (strcmp(argv[i], "--threads-per-block") == 0) {
-                sscanf(argv[i+1], "%u", &(config.threads_per_block));
-                i++;
-            }
-            else if (strcmp(argv[i], "--device-id") == 0) {
-                sscanf(argv[i+1], "%u", &(config.device_id));
-                i++;
-            }
-            else if (strcmp(argv[i], "--start-batch") == 0) {
-                sscanf(argv[i+1], "%d", &(config.start_batch));
-                i++;
-            }
-            else if (strcmp(argv[i], "--end-batch") == 0) {
-                sscanf(argv[i+1], "%d", &(config.end_batch));
-                i++;
+            // args with value
+            if (strcmp(argv[i], "--use-config") == 0) {
+                // TODO parse config from json
             }
         }
 
-        return (have_ptx && have_name && have_shared) ? 0 : 1;
+        if (app_params.mode == AppMode::NONE) {
+            std::cerr << "Error: Must specify operation mode: either --benchmark or --run-single\n";
+            return 1;
+        }
+        if (launch_params.empty()) {
+            std::cerr << "Error: Invalid or unspecified configuration file. Did you forget to --use-config (filename.json)?\n";
+            return 1;
+        }
+
+        return 0;
     }
 };
 
@@ -249,11 +255,11 @@ namespace launcher {
 int main(int argc, char** argv) {
     // default config
     launcher::LaunchParameters config {
-        std::string(), // kernel_name
-        std::string(), // kernel_ptx
-        std::vector<launcher::u32>(), // kernel_shared_memory
-        1ull << 48, // threads_total
-        1ull << 32, // threads_per_batch
+        std::string(), // kernel name
+        std::string(), // kernel PTX
+        std::vector<launcher::u32>(), // future contents of kernel's shared memory
+        1ull << 48, // total threads in entire job
+        1ull << 32, // threads per batch (work unit)
         256, // threads per block
         0,   // device id
         launcher::UNSPECIFIED, // (optional) start batch
