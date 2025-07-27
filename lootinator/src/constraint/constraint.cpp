@@ -1,3 +1,8 @@
+#include <cassert>
+#include <iostream>
+#include <fstream>
+
+#include <nlohmann/json.hpp>
 #include "lootinator/constraint/constraint.h"
 
 namespace loot {
@@ -94,6 +99,28 @@ namespace loot {
         for (const auto& constraint : src) {
             merge_into(dest, constraint);
         }
+    }
+
+    std::vector<loot::ItemAttribute> parse_attribute_json(nlohmann::json attribute_json) {
+        std::vector<loot::ItemAttribute> attributes;
+        for (auto json : attribute_json) {
+            attributes.push_back(ItemAttribute::from_json(json));
+        }
+        return attributes;
+    }
+
+    std::vector<loot::Constraint> parse_constraints_from_json(const char *filepath) {
+        std::vector<loot::Constraint> constraints;
+        std::ifstream f(filepath);
+        nlohmann::json data = nlohmann::json::parse(f);
+        for (auto con : data) {
+            std::uint32_t item = con["item"];
+            std::int32_t slot_id = con["slot"];
+            loot::RangeInclusive<std::uint32_t> count_range = RangeInclusive<std::uint32_t>::from_json(con["range"]); 
+            std::vector<loot::ItemAttribute> attributes = parse_attribute_json(con["attributes"]);
+            constraints.push_back({item, count_range, slot_id, attributes});
+        }
+        return constraints;
     }
 }
 
