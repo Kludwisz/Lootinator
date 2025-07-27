@@ -1,6 +1,7 @@
 #ifndef LOOTINATOR_UTILITY_RANGE_H
 #define LOOTINATOR_UTILITY_RANGE_H
 
+#include <nlohmann/json.hpp>
 #include "lootinator/utility/debug.h"
 
 namespace loot {
@@ -27,6 +28,12 @@ namespace loot {
             return value >= min && value <= max;
         }
 
+        static RangeInclusive from_json(nlohmann::json json) {
+            T min = json["min"];
+            T max = json["max"];
+            return { min, max };
+        }
+            
         friend std::ostream& operator<<(std::ostream& os, const RangeInclusive& range) {
             return DebugStruct(os, "RangeInclusive")
                 .add("min", range.min)

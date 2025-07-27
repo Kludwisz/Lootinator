@@ -1,0 +1,43 @@
+[
+    {
+        "item": 10,
+        "range": {
+            "min": 0,
+            "max": 15
+        },
+        "slot": 1,
+        "attributes": [
+            {
+                "type": 1,
+                "level_range": {
+                    "min": 17,
+                    "max": 37
+                }   
+            },
+            {
+                "type": 2,
+                "level_range": {
+                    "min": 21,
+                    "max": 60
+                }   
+            }
+        ]
+    },
+    {
+        "item": 21,
+        "range": {
+            "min": 4,
+            "max": 20
+        },
+        "slot": 13,
+        "attributes": [
+            {
+                "type": 18,
+                "level_range": {
+                    "min": 0,
+                    "max": 7
+                }   
+            }
+        ]
+    }
+]
