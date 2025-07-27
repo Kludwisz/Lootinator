@@ -10,9 +10,10 @@ int main() {
 		loot::Constraint c = cons[1];
 		std::cout << c << "\n";
 		loot::debug(std::cout, c.attributes);
+		std::cout << "\n";
 	}
 	catch(...) {
-		std::cout << "Error\n";
+		std::cout << "Error reading json file!\n";
 	}
 	
 	return 0;
