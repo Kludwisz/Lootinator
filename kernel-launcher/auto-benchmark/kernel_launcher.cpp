@@ -14,6 +14,7 @@ It's going to be an multi-feature executable that will enable:
 #include <cstring>
 #include <string>
 #include <vector>
+#include <chrono>
 
 #include <iostream>
 #include <sstream>
@@ -29,8 +30,11 @@ namespace launcher {
 
     constexpr i32 UNSPECIFIED = -1;
     constexpr u32 RESULT_BUFFER_SIZE = 16u * 1024u; // max results per kernel launch
+    constexpr u32 WARMUP_LAUNCH_COUNT = 2u;   // number of runs before actual benchmarking starts
+    constexpr u32 BENCHMARK_BATCH_SCALE = 4u; // real batch size is this times bigger than test batch size
+    constexpr float BENCHMARK_MAX_ELAPSED_TIME = 100.0f; // elapsed milliseconds of single run that stop the benchmark
 
-    #define CUDA_CHECK(ans) { launcher::gpuAssert((ans), __FILE__, __LINE__); }
+    #define CUDA_CHECK(ans) do { launcher::gpuAssert((ans), __FILE__, __LINE__); } while(false)
     void gpuAssert(CUresult code, const char *file, int line) {
         if (code != CUDA_SUCCESS) {
             const char* errStr;
@@ -40,13 +44,15 @@ namespace launcher {
         }
     }
 
-    #define NVRTC_CHECK(ans) { launcher::nvrtcAssert((ans), __FILE__, __LINE__); }
+    #define NVRTC_CHECK(ans) do { launcher::nvrtcAssert((ans), __FILE__, __LINE__); } while(false)
     void nvrtcAssert(nvrtcResult res, const char* file, int line) {
         if (res != NVRTC_SUCCESS) {
             std::cerr << "NVRTC error: " << nvrtcGetErrorString(res) << " at " << file << ":" << line << std::endl;
             exit(1);
         }
     }
+
+    #define DEBUG(bool_var) if (bool_var) std::cerr << "Debug: "
 
     enum AppMode {
         NONE,
@@ -77,86 +83,163 @@ namespace launcher {
         i32 end_batch;
     };
 
-    // Uses cuda driver api to turn the provided parameters into a functional kernel and launches it.
-    int launch_kernel(const LaunchParameters& config) {
-        // assert that grid size is ok
-        const u32 n_blocks = static_cast<u32>(config.threads_per_batch / config.threads_per_block);
-        const u64 n_blocks_long = config.threads_per_batch / config.threads_per_block;
-        if (static_cast<u64>(n_blocks) != n_blocks_long) {
-            std::cerr << "Fatal error (launch_kernel): number of blocks exceeded 2^32 for provided thread block size: " << config.threads_per_block << std::endl;
-            return 1;
-        }
-
-        CUDA_CHECK(cuInit(0));
+    struct KernelData {
         CUdevice device;
-        CUDA_CHECK(cuDeviceGet(&device, config.device_id));
         CUcontext context;
-        CUDA_CHECK(cuCtxCreate(&context, 0, device));
         CUmodule module;
-        CUDA_CHECK(cuModuleLoadData(&module, config.kernel_ptx.c_str()));
         CUfunction kernel;
-        CUDA_CHECK(cuModuleGetFunction(&kernel, module, config.kernel_name.c_str()));
 
-        u64 h_result_array[RESULT_BUFFER_SIZE];
         CUdeviceptr d_result_array, d_result_count;
-        CUDA_CHECK(cuMemAlloc(&d_result_array, RESULT_BUFFER_SIZE * sizeof(u64)));
-        CUDA_CHECK(cuMemAlloc(&d_result_count, sizeof(u32)));
-
         CUdeviceptr d_shared_mem_contents;
-        CUDA_CHECK(cuMemAlloc(&d_shared_mem_contents, config.kernel_shared_memory.size() * sizeof(u32)));
+        u32 shared_mem_bytes;
 
-        u32 h_shared_mem_contents_length = config.kernel_shared_memory.size();
-        const u32* h_shared_mem_contents = config.kernel_shared_memory.data();
-        CUDA_CHECK(cuMemcpyHtoD(d_shared_mem_contents, h_shared_mem_contents, h_shared_mem_contents_length * sizeof(u32)));
+        void* kernel_args[5];
 
-        for (i32 batch = config.start_batch; batch < config.end_batch; batch++) {
-            if (config.debug_info)
-                std::cerr << "Debug: Running batch #" << batch << " of range [" << config.start_batch << ", " << config.end_batch << ")" << std::endl;
-            
-            // reset result buffer
-            u32 h_result_count = 0;
-            CUDA_CHECK(cuMemcpyHtoD(d_result_count, &h_result_count, sizeof(u32)));
-            
+        KernelData(const LaunchParameters& config) {
+            // initialize all the necessary data structures
+            CUDA_CHECK(cuInit(0));
+            CUDA_CHECK(cuDeviceGet(&device, config.device_id));
+            CUDA_CHECK(cuCtxCreate(&context, 0, device));
+            CUDA_CHECK(cuModuleLoadData(&module, config.kernel_ptx.c_str()));
+            CUDA_CHECK(cuModuleGetFunction(&kernel, module, config.kernel_name.c_str()));
+
+            CUDA_CHECK(cuMemAlloc(&d_result_array, RESULT_BUFFER_SIZE * sizeof(u64)));
+            CUDA_CHECK(cuMemAlloc(&d_result_count, sizeof(u32)));
+            CUDA_CHECK(cuMemAlloc(&d_shared_mem_contents, config.kernel_shared_memory.size() * sizeof(u32)));
+
+            u32 h_shared_mem_contents_length = config.kernel_shared_memory.size();
+            shared_mem_bytes = h_shared_mem_contents_length * sizeof(u32);
+            CUDA_CHECK(cuMemcpyHtoD(d_shared_mem_contents, config.kernel_shared_memory.data(), h_shared_mem_contents_length * sizeof(u32)));
+
             // __global__ kernel_name(u64* result_array, u32* result_count, u32* shared_mem_contents, u32 shared_mem_contents_length, u64 offset)
-            u64 thread_offset = batch * config.threads_per_batch;
-            u32 shared_mem_bytes = h_shared_mem_contents_length * sizeof(u32);
-            void* kernel_args[] = {
+            kernel_args = {
                 &d_result_array,
                 &d_result_count,
                 &d_shared_mem_contents,
                 &h_shared_mem_contents_length,
-                &thread_offset
+                nullptr
             };
+        }
+
+        ~KernelData() {
+            // Cleanup
+            cuMemFree(d_result_array);
+            cuMemFree(d_result_count);
+            cuMemFree(d_shared_mem_contents);
+            cuModuleUnload(module);
+            cuCtxDestroy(context);
+        }
+    }
+
+    struct BenchmarkResults {
+        bool success;
+        float ms_per_batch;
+        float ms_total_estimate;
+    };
+
+    int finalize_config(LaunchParameters& config) {
+        // assert that grid size is ok
+        const launcher::u32 n_blocks = static_cast<launcher::u32>(config.threads_per_batch / config.threads_per_block);
+        const launcher::u64 n_blocks_long = config.threads_per_batch / config.threads_per_block;
+        if (static_cast<launcher::u64>(n_blocks) != n_blocks_long) {
+            std::cerr << "Fatal error (launch_kernel): number of blocks exceeded 2^32 for provided thread block size: " << config.threads_per_block << std::endl;
+            return 1;
+        }
+
+        // calculate or keep provided start and end batches.
+        if (config.start_batch == launcher::UNSPECIFIED || config.start_batch < 0) {
+            DEBUG(app_params.debug_info) << "Start batch unspecified or too small, defaulting to start-batch=0" << std::endl;
+            config.start_batch = 0;
+        }
+        launcher::i32 end_exclusive = (config.threads_total + config.threads_per_batch - 1) / config.threads_per_batch;
+        if (config.end_batch == launcher::UNSPECIFIED || config.end_batch > end_exclusive) {
+            DEBUG(app_params.debug_info) << "End batch unspecified or too large, defaulting to end-batch=" << end_exclusive << std::endl;
+            config.end_batch = end_exclusive;
+        }
+    }
+
+    // Uses cuda driver api to turn the provided parameters into a functional kernel and launches it.
+    int launch_kernel(const KernelData& kdata, const LaunchParameters& config, const AppParameters& app_params) {      
+        u64 h_result_array[RESULT_BUFFER_SIZE];
+        u32 h_shared_mem_contents_length = config.kernel_shared_memory.size();
+
+        for (i32 batch = config.start_batch; batch < config.end_batch; batch++) {
+            DEBUG(app_params.debug_info) << "Running batch #" << batch << " of range [" << config.start_batch << ", " << config.end_batch << ")" << std::endl;
+            
+            // reset result buffer
+            u32 h_result_count = 0;
+            CUDA_CHECK(cuMemcpyHtoD(kdata.d_result_count, &h_result_count, sizeof(u32)));
+            
+            u32 n_blocks = static_cast<u32>(config.threads_total / config.threads_per_block);
+            u64 thread_offset = batch * config.threads_per_batch;
+            kdata.kernel_args[4] = &thread_offset;
             CUDA_CHECK(cuLaunchKernel(
-                kernel,
+                kdata.kernel,
                 n_blocks, 1, 1, // grid size
                 config.threads_per_block, 1, 1, // block size
-                shared_mem_bytes,
+                kdata.shared_mem_bytes,
                 NULL, // use current context to launch
-                kernel_args,
+                kdata.kernel_args,
                 NULL // no extra parameters
             ));
             CUDA_CHECK(cuCtxSynchronize());
 
             // copy results back to host, print to stdout
-            CUDA_CHECK(cuMemcpyDtoH(&h_result_count, d_result_count, sizeof(u32)));
-            CUDA_CHECK(cuMemcpyDtoH(h_result_array, d_result_array, h_result_count * sizeof(u64)));
+            CUDA_CHECK(cuMemcpyDtoH(&h_result_count, kdata.d_result_count, sizeof(u32)));
+            CUDA_CHECK(cuMemcpyDtoH(h_result_array, kdata.d_result_array, h_result_count * sizeof(u64)));
+
             for (u32 i = 0; i < h_result_count; i++) {
                 std::cout << h_result_array[i] << '\n';
             }
             std::cout << std::flush;
-            if (config.debug_info)
-                std::cerr << "Debug: " << h_result_count << " results.\n";
+            DEBUG(app_params.debug_info) << "Got " <<  h_result_count << " results.\n";
         }
 
-        // Cleanup
-        cuMemFree(d_result_array);
-        cuMemFree(d_result_count);
-        cuMemFree(d_shared_mem_contents);
-        cuModuleUnload(module);
-        cuCtxDestroy(context);
-
         return 0;
+    }
+
+    BenchmarkResults benchmark_kernel(const LaunchParameters& config, const AppParameters& app_params) {
+        LaunchParameters work_config = config;
+        AppParameters work_app_params = app_params;
+        KernelData kdata(work_config);
+        BenchmarkResults results{false, 0.0f, 0.0f};
+
+        const i32 middle_batch = (config.start_batch + config.end_batch) / 2;
+        work_config.threads_per_batch /= BENCHMARK_BATCH_SCALE;
+
+        // warmup (to get more accurate measurements)
+        work_config.start_batch = middle_batch;
+        work_config.end_batch = middle_batch + 1;
+        work_app_params.debug_info = false;
+        for (u32 i = 0; i < WARMUP_LAUNCH_COUNT; i++) {
+            if (launch_kernel(kdata, work_config, work_app_params)) {
+                return results;
+            }
+        }
+
+        // benchmarking with auto-tuning
+        i32 batches = 1;
+        float elapsed_ms = 0.0f;
+        work_app_params.debug_info = app_params.debug_info;
+        
+        while (elapsed_ms < 100.0f) {
+            work_config.end_batch = work_config.start_batch + batches;
+
+            auto t0 = std::chrono::high_resolution_clock::now();
+            if (launch_kernel(kdata, work_config, work_app_params)) {
+                return results;
+            }
+            auto t1 = std::chrono::high_resolution_clock::now();
+            float elapsed_ms = (t1-t0).count() * 1e-6f;
+            if (!(elapsed_ms < 100.0f))
+                batches *= 2;
+        }
+
+        // return the results
+        results.success = true;
+        results.ms_per_batch = elapsed_ms * BENCHMARK_BATCH_SCALE / batches;
+        results.ms_total_estimate = results.ms_per_real_batch * (config.end_batch - config.start_batch);
+        return results;
     }
 
     int compile_nvrtc(const char* source_filename, LaunchParameters& config) {
@@ -253,38 +336,17 @@ namespace launcher {
 
 
 int main(int argc, char** argv) {
-    // default config
-    launcher::LaunchParameters config {
-        std::string(), // kernel name
-        std::string(), // kernel PTX
-        std::vector<launcher::u32>(), // future contents of kernel's shared memory
-        1ull << 48, // total threads in entire job
-        1ull << 32, // threads per batch (work unit)
-        256, // threads per block
-        0,   // device id
-        launcher::UNSPECIFIED, // (optional) start batch
-        launcher::UNSPECIFIED, // (optional) end batch
-        false // whether to print debug info
-    };
+    std::vector<launcher::LaunchParameters> kernel_params;
+    launcher::AppParameters app_params;
 
-    if (launcher::parse_args(argc, argv, config)) {
-        std::cerr << "Fatal error: kernel name or source code file missing or invalid." << std::endl;
+    if (launcher::parse_args(argc, argv, app_params, kernel_params)) {
         return 1;
     }
 
-    // calculate or keep provided start and end batches.
-    if (config.start_batch == launcher::UNSPECIFIED || config.start_batch < 0) {
-        if (config.debug_info)
-            std::cerr << "Start batch unspecified or too small, defaulting to start-batch=0" << std::endl;
-        config.start_batch = 0;
+    if (app_params.mode == launcher::AppMode::BENCHMARK) {
+        DEBUG(app_params.debug_info) << "selected benchmark mode.\n";
     }
-
-    launcher::i32 end_exclusive = (config.threads_total + config.threads_per_batch - 1) / config.threads_per_batch;
-    if (config.end_batch == launcher::UNSPECIFIED || config.end_batch > end_exclusive) {
-        if (config.debug_info)
-            std::cerr << "End batch unspecified or too large, defaulting to end-batch=" << end_exclusive << std::endl;
-        config.end_batch = end_exclusive;
+    else { // app mode = run single
+        DEBUG(app_params.debug_info) << "selected run-single mode.\n";
     }
-
-    return launch_kernel(config);
 }
