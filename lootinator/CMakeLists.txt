@@ -15,6 +15,7 @@ target_include_directories(lootinator PUBLIC include)
 
 set(TEST_FILES
     tests/constraint_test.cpp
+    tests/constraint_json_test.cpp
 )
 
 # Create test driver and test source list

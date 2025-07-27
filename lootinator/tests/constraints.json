@@ -22,5 +22,22 @@
                 }   
             }
         ]
+    },
+    {
+        "item": 21,
+        "range": {
+            "min": 4,
+            "max": 20
+        },
+        "slot": 13,
+        "attributes": [
+            {
+                "type": 18,
+                "level_range": {
+                    "min": 0,
+                    "max": 7
+                }   
+            }
+        ]
     }
 ]
