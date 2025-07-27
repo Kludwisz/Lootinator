@@ -63,13 +63,13 @@ namespace launcher {
         NONE,
         BENCHMARK,
         RUN_SINGLE
-    }
+    };
 
     struct AppParameters {
         AppMode mode;
         bool debug_info;
         bool generate_cuda_source;
-    }
+    };
 
     struct LaunchParameters {
         // internal
@@ -117,13 +117,11 @@ namespace launcher {
             CUDA_CHECK(cuMemcpyHtoD(d_shared_mem_contents, config.kernel_shared_memory.data(), h_shared_mem_contents_length * sizeof(u32)));
 
             // __global__ kernel_name(u64* result_array, u32* result_count, u32* shared_mem_contents, u32 shared_mem_contents_length, u64 offset)
-            kernel_args = {
-                &d_result_array,
-                &d_result_count,
-                &d_shared_mem_contents,
-                &h_shared_mem_contents_length,
-                nullptr
-            };
+            kernel_args[0] = &d_result_array;
+            kernel_args[1] = &d_result_count;
+            kernel_args[2] = &d_shared_mem_contents;
+            kernel_args[3] = &h_shared_mem_contents_length;
+            kernel_args[4] = nullptr;
         }
 
         ~KernelData() {
@@ -134,7 +132,7 @@ namespace launcher {
             cuModuleUnload(module);
             cuCtxDestroy(context);
         }
-    }
+    };
 
     struct BenchmarkResults {
         std::string kernel_name;
@@ -164,10 +162,12 @@ namespace launcher {
             DEBUG(app_params.debug_info) << "End batch unspecified or too large, defaulting to end-batch=" << end_exclusive << std::endl;
             config.end_batch = end_exclusive;
         }
+
+        return 0;
     }
 
     // Uses cuda driver api to turn the provided parameters into a functional kernel and launches it.
-    int launch_kernel(const KernelData& kdata, const LaunchParameters& config, const AppParameters& app_params) {      
+    int launch_kernel(KernelData& kdata, const LaunchParameters& config, const AppParameters& app_params) {      
         u64 h_result_array[RESULT_BUFFER_SIZE];
         u32 h_shared_mem_contents_length = config.kernel_shared_memory.size();
 
@@ -248,19 +248,19 @@ namespace launcher {
         // return the results
         results.success = true;
         results.ms_per_batch = elapsed_ms * BENCHMARK_BATCH_SCALE / batches;
-        results.ms_total_estimate = results.ms_per_real_batch * (config.end_batch - config.start_batch);
+        results.ms_total_estimate = results.ms_per_batch * (config.end_batch - config.start_batch);
         return results;
     }
 
     // writes 'time_ms' to 'fout' in a human-friendly format 
     void write_human_readable_time(std::ofstream& fout, const float time_ms) {
-        float seconds = time_ms / 1000f;
-        float minutes = seconds / 60f;
-        float hours = minutes / 60f;
+        float seconds = time_ms / 1000.0f;
+        float minutes = seconds / 60.0f;
+        float hours = minutes / 60.0f;
         int full_hours = static_cast<int>(std::floor(hours));
-        minutes -= full_hours * 60f;
+        minutes -= full_hours * 60.0f;
         int full_minutes = static_cast<int>(std::floor(minutes));
-        seconds -= full_minutes * 60f;
+        seconds -= full_minutes * 60.0f;
         int full_seconds = static_cast<int>(std::floor(seconds));
 
         fout << full_hours << " hours, " << full_minutes << " minutes, " << full_seconds << " seconds";
@@ -346,17 +346,17 @@ namespace launcher {
     // parses command line arguments. bad code but it works
     int parse_args(int argc, char** argv, AppParameters& app_params, std::vector<LaunchParameters>& launch_params) {
         // default app config
-        app_config.mode = AppMode::NONE;
-        app_config.debug_info = false;
-        app_config.generate_cuda_source = false;
+        app_params.mode = AppMode::NONE;
+        app_params.debug_info = false;
+        app_params.generate_cuda_source = false;
 
         for (int i = 1; i < argc; i++) {
             // flag args
             if (strcmp(argv[i], "--debug") == 0) {
-                app_config.debug_info = true;
+                app_params.debug_info = true;
             }
             else if (strcmp(argv[i], "--get-cuda-source") == 0) {
-                app_config.generate_cuda_source = true;
+                app_params.generate_cuda_source = true;
             }
             else if (strcmp(argv[i], "--benchmark") == 0) {
                 if (app_params.mode != AppMode::NONE) {
@@ -413,6 +413,6 @@ int main(int argc, char** argv) {
         DEBUG(app_params.debug_info) << "selected run-single mode.\n";
         launcher::LaunchParameters config = kernel_configs.at(0);
         launcher::KernelData kdata(config);
-        return launcher::launch_kernel(kdata, config, app_params)
+        return launcher::launch_kernel(kdata, config, app_params);
     }
 }
