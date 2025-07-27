@@ -1,0 +1,29 @@
+{
+    "threads_per_block": 256,
+    "device_id": 0,
+
+    "kernels": 
+    [
+        {
+            "kernel_name": "state_prediction_rolls",
+            "source_code_filepath": "kernel1.src",
+            "shared_memory_filepath": "kernel1.shm",
+            "threads_total": 281474976710656,
+            "threads_per_batch": 4294967296
+        },
+        {
+            "kernel_name": "naive_bruteforce",
+            "source_code_filepath": "kernel2.src",
+            "shared_memory_filepath": "kernel2.shm",
+            "threads_total": 281474976710656,
+            "threads_per_batch": 4294967296
+        },
+        {
+            "kernel_name": "state_prediction_item",
+            "source_code_filepath": "kernel3.src",
+            "shared_memory_filepath": "kernel3.shm",
+            "threads_total": 281474976710656,
+            "threads_per_batch": 4294967296
+        }
+    ]
+}
