@@ -15,6 +15,7 @@ It's going to be an multi-feature executable that will enable:
 #include <string>
 #include <vector>
 #include <chrono>
+#include <algorithm>
 
 #include <iostream>
 #include <sstream>
@@ -27,6 +28,10 @@ namespace launcher {
     typedef unsigned long long u64;
     typedef unsigned int u32;
     typedef int i32;
+
+    // these can be command line args if necessary
+    constexpr const char* BENCHMARK_RESULTS_FILE = "benchmark_results.txt";
+    constexpr const char* SOURCE_CODE_OUTPUT_FILE = "source.cu";
 
     constexpr i32 UNSPECIFIED = -1;
     constexpr u32 RESULT_BUFFER_SIZE = 16u * 1024u; // max results per kernel launch
@@ -132,12 +137,15 @@ namespace launcher {
     }
 
     struct BenchmarkResults {
+        std::string kernel_name;
         bool success;
         float ms_per_batch;
         float ms_total_estimate;
     };
+}
 
-    int finalize_config(LaunchParameters& config) {
+namespace launcher {
+    int finalize_config(LaunchParameters& config, const AppParameters& app_params) {
         // assert that grid size is ok
         const launcher::u32 n_blocks = static_cast<launcher::u32>(config.threads_per_batch / config.threads_per_block);
         const launcher::u64 n_blocks_long = config.threads_per_batch / config.threads_per_block;
@@ -198,11 +206,12 @@ namespace launcher {
         return 0;
     }
 
+    // Performs an automated benchmark of the provided kernel.
     BenchmarkResults benchmark_kernel(const LaunchParameters& config, const AppParameters& app_params) {
         LaunchParameters work_config = config;
         AppParameters work_app_params = app_params;
         KernelData kdata(work_config);
-        BenchmarkResults results{false, 0.0f, 0.0f};
+        BenchmarkResults results{config.kernel_name, false, 0.0f, 0.0f};
 
         const i32 middle_batch = (config.start_batch + config.end_batch) / 2;
         work_config.threads_per_batch /= BENCHMARK_BATCH_SCALE;
@@ -221,6 +230,7 @@ namespace launcher {
         i32 batches = 1;
         float elapsed_ms = 0.0f;
         work_app_params.debug_info = app_params.debug_info;
+        DEBUG(app_params.debug_info) << " benchmarking kernel " << config.kernel_name << " - running benchmark";
         
         while (elapsed_ms < 100.0f) {
             work_config.end_batch = work_config.start_batch + batches;
@@ -242,6 +252,54 @@ namespace launcher {
         return results;
     }
 
+    // writes 'time_ms' to 'fout' in a human-friendly format 
+    void write_human_readable_time(std::ofstream& fout, const float time_ms) {
+        float seconds = time_ms / 1000f;
+        float minutes = seconds / 60f;
+        float hours = minutes / 60f;
+        int full_hours = static_cast<int>(std::floor(hours));
+        minutes -= full_hours * 60f;
+        int full_minutes = static_cast<int>(std::floor(minutes));
+        seconds -= full_minutes * 60f;
+        int full_seconds = static_cast<int>(std::floor(seconds));
+
+        fout << full_hours << " hours, " << full_minutes << " minutes, " << full_seconds << " seconds";
+    }
+
+    // Benchmarks all kernels provided in the vector of launch parameters. Prints results to BENCHMARK_RESULTS_FILE.
+    void benchmark_all(const AppParameters& app_params, std::vector<launcher::LaunchParameters> kernel_configs) {
+        std::vector<BenchmarkResults> result_vec;
+        
+        for (const auto& config : kernel_configs) {
+            DEBUG(app_params.debug_info) << " benchmarking kernel " << config.kernel_name << " - initializing data\n";
+            BenchmarkResults res = benchmark_kernel(config, app_params);
+            DEBUG(app_params.debug_info) << " benchmarking kernel " << config.kernel_name << " - done\n";
+
+            result_vec.push_back(res);
+            if (!res.success) {
+                std::cerr << "Warning: Benchmark failed for kernel " << config.kernel_name << ", results will be ignored\n";
+            }
+        }
+
+        // sort ascending by estimated time to run full seedspace
+        std::sort(result_vec.begin(), result_vec.end(), [](BenchmarkResults& l, BenchmarkResults& r){ return l.ms_total_estimate < r.ms_total_estimate; });
+        // print results to file
+        std::ofstream fout(BENCHMARK_RESULTS_FILE);
+        for (const auto& res : result_vec) {
+            if (!res.success)
+                continue;
+            fout << res.kernel_name << ":\n";
+            fout << "Estimated batch runtime: " << res.ms_per_batch << "ms (";
+            write_human_readable_time(fout, res.ms_per_batch);
+            fout << ")\nEstimated total runtime: " << res.ms_total_estimate << "ms (";
+            write_human_readable_time(fout, res.ms_total_estimate);
+            fout << ")\n\n";
+        }
+
+        DEBUG(app_params.debug_info) << " benchmark_all completed.\n";
+    }
+
+    // Compiles the CUDA kernel in file 'source_filename' and stores the PTX in the 'config' structure
     int compile_nvrtc(const char* source_filename, LaunchParameters& config) {
         std::ifstream file(source_filename);
         if (!file) {
@@ -270,6 +328,7 @@ namespace launcher {
         return 0;
     }
 
+    // Parses the shared memory contents from file 'shared_mem_filename'
     int read_shared_memory(const char* shared_mem_filename, LaunchParameters& config) {
         std::ifstream file(shared_mem_filename);
         if (!file) {
@@ -284,7 +343,7 @@ namespace launcher {
         return 0;
     }
 
-    // bad code but it works
+    // parses command line arguments. bad code but it works
     int parse_args(int argc, char** argv, AppParameters& app_params, std::vector<LaunchParameters>& launch_params) {
         // default app config
         app_config.mode = AppMode::NONE;
@@ -336,17 +395,24 @@ namespace launcher {
 
 
 int main(int argc, char** argv) {
-    std::vector<launcher::LaunchParameters> kernel_params;
+    std::vector<launcher::LaunchParameters> kernel_configs;
     launcher::AppParameters app_params;
 
-    if (launcher::parse_args(argc, argv, app_params, kernel_params)) {
+    if (launcher::parse_args(argc, argv, app_params, kernel_configs)) {
         return 1;
     }
 
+    // TODO compile all kernels to PTX, fill any extra data in kernel_configs
+
     if (app_params.mode == launcher::AppMode::BENCHMARK) {
         DEBUG(app_params.debug_info) << "selected benchmark mode.\n";
+        benchmark_all(app_params, kernel_configs);
+        return 0;
     }
     else { // app mode = run single
         DEBUG(app_params.debug_info) << "selected run-single mode.\n";
+        launcher::LaunchParameters config = kernel_configs.at(0);
+        launcher::KernelData kdata(config);
+        return launcher::launch_kernel(kdata, config, app_params)
     }
 }
