@@ -12,8 +12,8 @@ int main() {
 		loot::debug(std::cout, c.attributes);
 		std::cout << "\n";
 	}
-	catch(...) {
-		std::cout << "Error reading json file!\n";
+	catch (const std::exception& e) {
+        std::cerr << "Caught exception: " << e.what() << std::endl;
 	}
 	
 	return 0;

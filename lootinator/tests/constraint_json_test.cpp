@@ -16,9 +16,9 @@ void test_json_parse() {
         loot::debug(std::cerr, attributes);
 
         ASSERT_EQ(cons[0], test_constraint);        
-    } catch (...) {
-		std::cout << "Error reading json file!\n";
-    }
+    } catch (const std::exception& e) {
+        std::cerr << "Caught exception: " << e.what() << std::endl;
+	}
 }
 
 int LOOTINATOR_EXTERN tests_constraint_json_test(int argc, char** const argv) {
