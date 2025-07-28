@@ -23,4 +23,5 @@ void test_json_parse() {
 
 int LOOTINATOR_EXTERN tests_constraint_json_test(int argc, char** const argv) {
     test_json_parse();
+    return 0;
 }

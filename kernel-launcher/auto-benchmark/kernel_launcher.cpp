@@ -21,6 +21,8 @@ It's going to be an multi-feature executable that will enable:
 #include <sstream>
 #include <fstream>
 
+#include "../../external/json/single_include/nlohmann/json.hpp"
+
 
 namespace launcher {
     // in nvrtc-compiled code, the stdint.h header is not directly available, 
@@ -240,7 +242,7 @@ namespace launcher {
                 return results;
             }
             auto t1 = std::chrono::high_resolution_clock::now();
-            float elapsed_ms = (t1-t0).count() * 1e-6f;
+            elapsed_ms = (t1-t0).count() * 1e-6f;
             if (!(elapsed_ms < 100.0f))
                 batches *= 2;
         }
@@ -343,6 +345,52 @@ namespace launcher {
         return 0;
     }
 
+    // Parses the config file containing information about all the provided kernels:
+    // filepaths of shared memories, kernel sources, total & per-batch thread counts, etc.
+    int parse_config_json(const char* config_filename, AppParameters& app_params, std::vector<LaunchParameters>& launch_params) {
+        try {
+            std::ifstream fin(config_filename);
+            nlohmann::json data = nlohmann::json::parse(fin);
+            u32 device_id = 0;
+
+            if (data.contains("debug"))
+                app_params.debug_info = data["debug"];
+            if (data.contains("device_id"))
+                device_id = data["device_id"];
+            if (data.contains("generate_cuda_source"))
+                app_params.generate_cuda_source = data["generate_cuda_source"];
+
+            // parsing kernel data (kernels field is required)
+            nlohmann::json kernel_data = data["kernels"];
+            for (auto& node : kernel_data) {
+                LaunchParameters launch_params;
+                launch_params.device_id = device_id;
+
+                // all fields below are required 
+                launch_params.kernel_name = data["kernel_name"];
+                launch_params.threads_total = data["threads_total"];
+                launch_params.threads_per_batch = data["threads_per_batch"];
+                launch_params.threads_per_block = data["threads_per_block"];
+                std::string shmem_file = data["shared_memory_filepath"];
+                std::string src_file = data["source_code_filepath"];
+                DEBUG(app_params.debug_info) << "Compiling kernel " <<  launch_params.kernel_name << "...\n";
+
+                if (read_shared_memory(shmem_file.c_str(), launch_params)) {
+                    std::cerr << "Error: failed to read shared memory file '" << shmem_file << "' for kernel " << launch_params.kernel_name << "\n";
+                    return 1;
+                }
+                if (compile_nvrtc(src_file.c_str(), launch_params)) {
+                    std::cerr << "Error: failed to compile source code file '" << src_file << "' for kernel " << launch_params.kernel_name << "\n";
+                    return 1;
+                }
+            }
+        }
+        catch (std::exception ex) {
+            std::cerr << ex.what() << "\n";
+            return 1;
+        }
+    }
+
     // parses command line arguments. bad code but it works
     int parse_args(int argc, char** argv, AppParameters& app_params, std::vector<LaunchParameters>& launch_params) {
         // default app config
@@ -352,22 +400,16 @@ namespace launcher {
 
         for (int i = 1; i < argc; i++) {
             // flag args
-            if (strcmp(argv[i], "--debug") == 0) {
-                app_params.debug_info = true;
-            }
-            else if (strcmp(argv[i], "--get-cuda-source") == 0) {
-                app_params.generate_cuda_source = true;
-            }
-            else if (strcmp(argv[i], "--benchmark") == 0) {
-                if (app_params.mode != AppMode::NONE) {
-                    std::cerr << "Illegal args: --benchmark and --run-single cannot be specified at once!\n";
+            if (strcmp(argv[i], "--benchmark") == 0) {
+                if (app_params.mode == AppMode::RUN_SINGLE) {
+                    std::cerr << "Error: Illegal args: --benchmark and --run-single cannot be specified at once!\n";
                     return 1;
                 }
                 app_params.mode = AppMode::BENCHMARK;
             }
             else if (strcmp(argv[i], "--run-single") == 0) {
-                if (app_params.mode != AppMode::NONE) {
-                    std::cerr << "Illegal args: --benchmark and --run-single cannot be specified at once!\n";
+                if (app_params.mode == AppMode::BENCHMARK) {
+                    std::cerr << "Error: Illegal args: --benchmark and --run-single cannot be specified at once!\n";
                     return 1;
                 }
                 app_params.mode = AppMode::RUN_SINGLE;
@@ -376,7 +418,10 @@ namespace launcher {
             
             // args with value
             if (strcmp(argv[i], "--use-config") == 0) {
-                // TODO parse config from json
+                if (parse_config_json(argv[i+1], launch_params)) {
+                    std::cerr << "Error: Invalid configuration file: " << argv[i+1] << ".\n";
+                    return 1;
+                }
             }
         }
 
@@ -385,7 +430,7 @@ namespace launcher {
             return 1;
         }
         if (launch_params.empty()) {
-            std::cerr << "Error: Invalid or unspecified configuration file. Did you forget to --use-config (filename.json)?\n";
+            std::cerr << "Error: Unspecified configuration file. Did you forget to --use-config (filename.json)?\n";
             return 1;
         }
 
@@ -401,8 +446,6 @@ int main(int argc, char** argv) {
     if (launcher::parse_args(argc, argv, app_params, kernel_configs)) {
         return 1;
     }
-
-    // TODO compile all kernels to PTX, fill any extra data in kernel_configs
 
     if (app_params.mode == launcher::AppMode::BENCHMARK) {
         DEBUG(app_params.debug_info) << "selected benchmark mode.\n";
