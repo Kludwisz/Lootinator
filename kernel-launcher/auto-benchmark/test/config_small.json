@@ -1,0 +1,33 @@
+{
+    "device_id": 0,
+    "debug": true,
+    "generate_cuda_source": false,
+
+    "kernels": 
+    [
+        {
+            "kernel_name": "state_prediction_rolls",
+            "source_code_filepath": "test/kernel1.src",
+            "shared_memory_filepath": "test/kernel.shm",
+            "threads_total": 4294967296,
+            "threads_per_batch": 65536,
+            "threads_per_block": 256
+        },
+        {
+            "kernel_name": "naive_bruteforce",
+            "source_code_filepath": "test/kernel2.src",
+            "shared_memory_filepath": "test/kernel.shm",
+            "threads_total": 4294967296,
+            "threads_per_batch": 65536,
+            "threads_per_block": 256
+        },
+        {
+            "kernel_name": "state_prediction_item",
+            "source_code_filepath": "test/kernel3.src",
+            "shared_memory_filepath": "test/kernel.shm",
+            "threads_total": 4294967296,
+            "threads_per_batch": 65536,
+            "threads_per_block": 256
+        }
+    ]
+}

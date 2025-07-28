@@ -1,0 +1,21 @@
+Test case description:
+
+This test targets the following, example loot table:
+
+LootPool (uniform roll: 4-8) {
+    {item: 0, weight: 10} with SetCountUniform(3,6),
+    {item: 1, weight: 10} with SetCountUniform(2,5),
+    {item: 2, weight: 5},
+    {item: 3, weight: 1} with SetCountUniform(1,2),
+    {item: 4, weight: 1},
+    {item: 5, weight: 1}
+}
+
+The user provided the following constraints:
+
+- at least 11 x item 3
+
+Three kernel source codes were generated for these constraints:
+- state prediction on roll count, source code kernel1.src
+- naive bruteforce solution, source code kernel2.src
+- state prediction on item type, source code kernel3.src

@@ -122,7 +122,7 @@ namespace launcher {
             kernel_args[0] = &d_result_array;
             kernel_args[1] = &d_result_count;
             kernel_args[2] = &d_shared_mem_contents;
-            kernel_args[3] = &h_shared_mem_contents_length;
+            kernel_args[3] = nullptr;
             kernel_args[4] = nullptr;
         }
 
@@ -182,6 +182,7 @@ namespace launcher {
             
             u32 n_blocks = static_cast<u32>(config.threads_total / config.threads_per_block);
             u64 thread_offset = batch * config.threads_per_batch;
+            kdata.kernel_args[3] = &h_shared_mem_contents_length;
             kdata.kernel_args[4] = &thread_offset;
             CUDA_CHECK(cuLaunchKernel(
                 kdata.kernel,
@@ -205,6 +206,7 @@ namespace launcher {
             DEBUG(app_params.debug_info) << "Got " <<  h_result_count << " results.\n";
         }
 
+        DEBUG(app_params.debug_info) << "launch_kernel finished. work done: " << config.start_batch << " " << config.end_batch << "\n";
         return 0;
     }
 
@@ -342,6 +344,7 @@ namespace launcher {
         while (file >> val) {
             config.kernel_shared_memory.push_back(val);
         }
+        std::cerr << "Debug: Shared memory size: " << config.kernel_shared_memory.size() << "\n";
         return 0;
     }
 
@@ -360,35 +363,48 @@ namespace launcher {
             if (data.contains("generate_cuda_source"))
                 app_params.generate_cuda_source = data["generate_cuda_source"];
 
+            DEBUG(app_params.debug_info) << "App params parsed succesfully.\n";
+
             // parsing kernel data (kernels field is required)
             nlohmann::json kernel_data = data["kernels"];
             for (auto& node : kernel_data) {
-                LaunchParameters launch_params;
-                launch_params.device_id = device_id;
+                LaunchParameters lp;
+                lp.start_batch = lp.end_batch = launcher::UNSPECIFIED;
+                lp.device_id = device_id;
 
                 // all fields below are required 
-                launch_params.kernel_name = data["kernel_name"];
-                launch_params.threads_total = data["threads_total"];
-                launch_params.threads_per_batch = data["threads_per_batch"];
-                launch_params.threads_per_block = data["threads_per_block"];
-                std::string shmem_file = data["shared_memory_filepath"];
-                std::string src_file = data["source_code_filepath"];
-                DEBUG(app_params.debug_info) << "Compiling kernel " <<  launch_params.kernel_name << "...\n";
+                lp.kernel_name = node["kernel_name"];
+                lp.threads_total = node["threads_total"];
+                lp.threads_per_batch = node["threads_per_batch"];
+                lp.threads_per_block = node["threads_per_block"];
+                std::string shmem_file = node["shared_memory_filepath"];
+                std::string src_file = node["source_code_filepath"];
+                // these two are optional
+                if (node.contains("start_batch")) lp.start_batch = node["start_batch"];
+                if (node.contains("start_batch")) lp.end_batch = node["end_batch"];
 
-                if (read_shared_memory(shmem_file.c_str(), launch_params)) {
-                    std::cerr << "Error: failed to read shared memory file '" << shmem_file << "' for kernel " << launch_params.kernel_name << "\n";
+                DEBUG(app_params.debug_info) << "Compiling kernel " <<  lp.kernel_name << "...\n";
+
+                if (read_shared_memory(shmem_file.c_str(), lp)) {
+                    std::cerr << "Error: failed to read shared memory file '" << shmem_file << "' for kernel " << lp.kernel_name << "\n";
                     return 1;
                 }
-                if (compile_nvrtc(src_file.c_str(), launch_params)) {
-                    std::cerr << "Error: failed to compile source code file '" << src_file << "' for kernel " << launch_params.kernel_name << "\n";
+                if (compile_nvrtc(src_file.c_str(), lp)) {
+                    std::cerr << "Error: failed to compile source code file '" << src_file << "' for kernel " << lp.kernel_name << "\n";
                     return 1;
                 }
+                if (finalize_config(lp, app_params)) {
+                    return 1;
+                }
+
+                launch_params.push_back(lp);
             }
         }
         catch (std::exception ex) {
             std::cerr << ex.what() << "\n";
             return 1;
         }
+        return 0;
     }
 
     // parses command line arguments. bad code but it works
@@ -418,7 +434,7 @@ namespace launcher {
             
             // args with value
             if (strcmp(argv[i], "--use-config") == 0) {
-                if (parse_config_json(argv[i+1], launch_params)) {
+                if (parse_config_json(argv[i+1], app_params, launch_params)) {
                     std::cerr << "Error: Invalid configuration file: " << argv[i+1] << ".\n";
                     return 1;
                 }
@@ -455,6 +471,8 @@ int main(int argc, char** argv) {
     else { // app mode = run single
         DEBUG(app_params.debug_info) << "selected run-single mode.\n";
         launcher::LaunchParameters config = kernel_configs.at(0);
+        if (launcher::finalize_config(config, app_params))
+            return 1;
         launcher::KernelData kdata(config);
         return launcher::launch_kernel(kdata, config, app_params);
     }

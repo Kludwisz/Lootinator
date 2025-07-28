@@ -1,22 +1,22 @@
 {
     "device_id": 0,
     "debug": true,
-    "generate_cuda_source": true,
+    "generate_cuda_source": false,
 
     "kernels": 
     [
         {
             "kernel_name": "state_prediction_rolls",
             "source_code_filepath": "test/kernel1.src",
-            "shared_memory_filepath": "test/kernel1.shm",
-            "threads_total": 281474976710656,
+            "shared_memory_filepath": "test/kernel.shm",
+            "threads_total": 56294995342132,
             "threads_per_batch": 4294967296,
             "threads_per_block": 256
         },
         {
             "kernel_name": "naive_bruteforce",
             "source_code_filepath": "test/kernel2.src",
-            "shared_memory_filepath": "test/kernel2.shm",
+            "shared_memory_filepath": "test/kernel.shm",
             "threads_total": 281474976710656,
             "threads_per_batch": 4294967296,
             "threads_per_block": 256
@@ -24,8 +24,8 @@
         {
             "kernel_name": "state_prediction_item",
             "source_code_filepath": "test/kernel3.src",
-            "shared_memory_filepath": "test/kernel3.shm",
-            "threads_total": 281474976710656,
+            "shared_memory_filepath": "test/kernel.shm",
+            "threads_total": 10052677739667,
             "threads_per_batch": 4294967296,
             "threads_per_block": 256
         }
