@@ -19,7 +19,7 @@ extern "C" {
     {
         extern __shared__ u32 data[];
         if (threadIdx.x < shared_mem_contents_length) {
-            for (int i = threadIdx.x; i < 28; i += blockDim.x) {
+            for (int i = threadIdx.x; i < shared_mem_contents_length; i += blockDim.x) {
                 data[i] = shared_mem_contents[i];
             }
         }

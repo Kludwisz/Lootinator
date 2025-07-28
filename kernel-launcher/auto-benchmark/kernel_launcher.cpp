@@ -180,7 +180,7 @@ namespace launcher {
             u32 h_result_count = 0;
             CUDA_CHECK(cuMemcpyHtoD(kdata.d_result_count, &h_result_count, sizeof(u32)));
             
-            u32 n_blocks = static_cast<u32>(config.threads_total / config.threads_per_block);
+            u32 n_blocks = static_cast<u32>(config.threads_per_batch / config.threads_per_block);
             u64 thread_offset = batch * config.threads_per_batch;
             kdata.kernel_args[3] = &h_shared_mem_contents_length;
             kdata.kernel_args[4] = &thread_offset;
