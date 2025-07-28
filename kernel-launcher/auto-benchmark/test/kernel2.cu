@@ -10,6 +10,7 @@ __device__ inline void setSeed(u64* rand, u64 value){ *rand = (value ^ JRAND_MUL
 __device__ inline int next(u64* rand, const int bits){ *rand = (*rand * JRAND_MULTIPLIER + 11) & MASK_48; return (int)((i64)*rand >> (48 - bits)); }
 __device__ inline int nextInt(u64* rand, const int n){ if ((n-1 & n) == 0) {u64 x = n * (u64)next(rand, 31); return (int)((i64)x >> 31);} else {return (int)(next(rand, 31) % n);} }
 __device__ inline float nextFloat(u64* rand){ return next(rand, 24) / (float)(1 << 24); }
+//@END_HEADER
 
 extern "C" {
     __global__ void naive_bruteforce(

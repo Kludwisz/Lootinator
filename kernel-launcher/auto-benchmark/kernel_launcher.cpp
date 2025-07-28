@@ -1,5 +1,5 @@
 /*
-This file will be compiled as a standalone application.
+This will be compiled as a standalone application.
 It's going to be an multi-feature executable that will enable:
 - automated benchmarking of a provided list of kernels (core feature)
 - launching any single kernel with provided parameters (feature of simple launcher)
@@ -23,20 +23,9 @@ It's going to be an multi-feature executable that will enable:
 
 #include "../../external/json/single_include/nlohmann/json.hpp"
 
+#include "launcher_data.h"
 
 namespace launcher {
-    // in nvrtc-compiled code, the stdint.h header is not directly available, 
-    // so this approach should be better for portability across standard systems
-    typedef unsigned long long u64;
-    typedef unsigned int u32;
-    typedef int i32;
-
-    // these can be command line args if necessary
-    constexpr const char* BENCHMARK_RESULTS_FILE = "benchmark_results.txt";
-    constexpr const char* SOURCE_CODE_OUTPUT_FILE = "source.cu";
-
-    constexpr i32 UNSPECIFIED = -1;
-    constexpr u32 RESULT_BUFFER_SIZE = 16u * 1024u; // max results per kernel launch
     constexpr u32 WARMUP_LAUNCH_COUNT = 2u;   // number of runs before actual benchmarking starts
     constexpr u32 BENCHMARK_BATCH_SCALE = 4u; // real batch size is this times bigger than test batch size
     constexpr float BENCHMARK_MAX_ELAPSED_TIME = 100.0f; // elapsed milliseconds of single run that stop the benchmark
@@ -61,35 +50,6 @@ namespace launcher {
 
     #define DEBUG(bool_var) if (bool_var) std::cerr << "Debug: "
 
-    enum AppMode {
-        NONE,
-        BENCHMARK,
-        RUN_SINGLE
-    };
-
-    struct AppParameters {
-        AppMode mode;
-        bool debug_info;
-        bool generate_cuda_source;
-    };
-
-    struct LaunchParameters {
-        // internal
-        std::string kernel_name;
-        std::string kernel_ptx;
-        std::vector<u32> kernel_shared_memory;
-        u64 threads_total;
-        u64 threads_per_batch;
-
-        // user-provided
-        u32 threads_per_block;
-        u32 device_id;
-        
-        // non-kernel
-        i32 start_batch;
-        i32 end_batch;
-    };
-
     struct KernelData {
         CUdevice device;
         CUcontext context;
@@ -107,7 +67,7 @@ namespace launcher {
             CUDA_CHECK(cuInit(0));
             CUDA_CHECK(cuDeviceGet(&device, config.device_id));
             CUDA_CHECK(cuCtxCreate(&context, 0, device));
-            CUDA_CHECK(cuModuleLoadData(&module, config.kernel_ptx.c_str()));
+            CUDA_CHECK(cuModuleLoadData(&module, config.kernel_code.c_str()));
             CUDA_CHECK(cuModuleGetFunction(&kernel, module, config.kernel_name.c_str()));
 
             CUDA_CHECK(cuMemAlloc(&d_result_array, RESULT_BUFFER_SIZE * sizeof(u64)));
@@ -142,6 +102,11 @@ namespace launcher {
         float ms_per_batch;
         float ms_total_estimate;
     };
+}
+
+namespace launcher {
+    extern int generate_benchmarker_source(std::vector<launcher::LaunchParameters> kernel_configs);
+    extern int generate_runner_source(launcher::LaunchParameters& kernel_config);
 }
 
 namespace launcher {
@@ -266,7 +231,7 @@ namespace launcher {
         int full_hours = static_cast<int>(std::floor(hours));
         minutes -= full_hours * 60.0f;
         int full_minutes = static_cast<int>(std::floor(minutes));
-        seconds -= full_minutes * 60.0f;
+        seconds -= full_minutes * 60.0f + full_hours * 3600.0f;
         int full_seconds = static_cast<int>(std::floor(seconds));
 
         fout << full_hours << " hours, " << full_minutes << " minutes, " << full_seconds << " seconds";
@@ -330,7 +295,7 @@ namespace launcher {
         NVRTC_CHECK(nvrtcGetPTX(prog, &ptx[0]));
         nvrtcDestroyProgram(&prog);
 
-        config.kernel_ptx = ptx;
+        config.kernel_code = ptx;
         return 0;
     }
 
@@ -379,8 +344,8 @@ namespace launcher {
                 lp.threads_total = node["threads_total"];
                 lp.threads_per_batch = node["threads_per_batch"];
                 lp.threads_per_block = node["threads_per_block"];
+                lp.kernel_source_file = node["source_code_filepath"];
                 std::string shmem_file = node["shared_memory_filepath"];
-                std::string src_file = node["source_code_filepath"];
                 // these two are optional
                 if (node.contains("start_batch")) lp.start_batch = node["start_batch"];
                 if (node.contains("start_batch")) lp.end_batch = node["end_batch"];
@@ -391,8 +356,8 @@ namespace launcher {
                     std::cerr << "Error: failed to read shared memory file '" << shmem_file << "' for kernel " << lp.kernel_name << "\n";
                     return 1;
                 }
-                if (compile_nvrtc(src_file.c_str(), lp)) {
-                    std::cerr << "Error: failed to compile source code file '" << src_file << "' for kernel " << lp.kernel_name << "\n";
+                if (compile_nvrtc(lp.kernel_source_file, lp)) {
+                    std::cerr << "Error: failed to compile source code file '" << lp.kernel_source_file << "' for kernel " << lp.kernel_name << "\n";
                     return 1;
                 }
                 if (finalize_config(lp, app_params)) {
@@ -467,15 +432,27 @@ int main(int argc, char** argv) {
 
     if (app_params.mode == launcher::AppMode::BENCHMARK) {
         DEBUG(app_params.debug_info) << "selected benchmark mode.\n";
-        benchmark_all(app_params, kernel_configs);
-        return 0;
+
+        if (app_params.generate_cuda_source) {
+            return launcher::generate_benchmarker_source(kernel_configs);
+        }
+        else {
+            launcher::benchmark_all(app_params, kernel_configs);
+            return 0;
+        }
     }
     else { // app mode = run single
         DEBUG(app_params.debug_info) << "selected run-single mode.\n";
         launcher::LaunchParameters config = kernel_configs.at(0);
         if (launcher::finalize_config(config, app_params))
             return 1;
-        launcher::KernelData kdata(config);
-        return launcher::launch_kernel(kdata, config, app_params);
+
+        if (app_params.generate_cuda_source) {
+            return launcher::generate_runner_source(config);
+        }
+        else {
+            launcher::KernelData kdata(config);
+            return launcher::launch_kernel(kdata, config, app_params);
+        }
     }
 }
