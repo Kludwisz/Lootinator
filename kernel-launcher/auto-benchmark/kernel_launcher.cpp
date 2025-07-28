@@ -174,7 +174,7 @@ namespace launcher {
         u32 h_shared_mem_contents_length = config.kernel_shared_memory.size();
 
         for (i32 batch = config.start_batch; batch < config.end_batch; batch++) {
-            DEBUG(app_params.debug_info) << "Running batch #" << batch << " of range [" << config.start_batch << ", " << config.end_batch << ")" << std::endl;
+            //DEBUG(app_params.debug_info) << "Running batch #" << batch << " of range [" << config.start_batch << ", " << config.end_batch << ")" << std::endl;
             
             // reset result buffer
             u32 h_result_count = 0;
@@ -198,12 +198,14 @@ namespace launcher {
             // copy results back to host, print to stdout
             CUDA_CHECK(cuMemcpyDtoH(&h_result_count, kdata.d_result_count, sizeof(u32)));
             CUDA_CHECK(cuMemcpyDtoH(h_result_array, kdata.d_result_array, h_result_count * sizeof(u64)));
+            if (app_params.mode == AppMode::BENCHMARK)
+                continue;
 
             for (u32 i = 0; i < h_result_count; i++) {
                 std::cout << h_result_array[i] << '\n';
             }
             std::cout << std::flush;
-            DEBUG(app_params.debug_info) << "Got " <<  h_result_count << " results.\n";
+            //DEBUG(app_params.debug_info) << "Got " <<  h_result_count << " results.\n";
         }
 
         DEBUG(app_params.debug_info) << "launch_kernel finished. work done: " << config.start_batch << " " << config.end_batch << "\n";
@@ -245,7 +247,7 @@ namespace launcher {
             }
             auto t1 = std::chrono::high_resolution_clock::now();
             elapsed_ms = (t1-t0).count() * 1e-6f;
-            if (!(elapsed_ms < 100.0f))
+            if (elapsed_ms < 100.0f)
                 batches *= 2;
         }
 

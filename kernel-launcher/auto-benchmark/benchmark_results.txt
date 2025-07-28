@@ -1,12 +1,12 @@
 state_prediction_item:
-Estimated batch runtime: 334.151ms (0 hours, 0 minutes, 0 seconds)
-Estimated total runtime: 2.18989e+07ms (6 hours, 4 minutes, 21658 seconds)
-
-naive_bruteforce:
-Estimated batch runtime: 689.012ms (0 hours, 0 minutes, 0 seconds)
-Estimated total runtime: 4.51551e+07ms (12 hours, 32 minutes, 43235 seconds)
+Estimated batch runtime: 219.92ms (0 hours, 0 minutes, 0 seconds)
+Estimated total runtime: 514834ms (0 hours, 8 minutes, 34 seconds)
 
 state_prediction_rolls:
-Estimated batch runtime: 1310.81ms (0 hours, 0 minutes, 1 seconds)
-Estimated total runtime: 8.59051e+07ms (23 hours, 51 minutes, 82845 seconds)
+Estimated batch runtime: 838.186ms (0 hours, 0 minutes, 0 seconds)
+Estimated total runtime: 1.09869e+07ms (3 hours, 3 minutes, 10806 seconds)
+
+naive_bruteforce:
+Estimated batch runtime: 439.79ms (0 hours, 0 minutes, 0 seconds)
+Estimated total runtime: 2.88221e+07ms (8 hours, 0 minutes, 28822 seconds)
 
