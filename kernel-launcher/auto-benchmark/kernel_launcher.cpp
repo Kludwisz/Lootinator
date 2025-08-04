@@ -271,7 +271,8 @@ namespace launcher {
     }
 
     // Compiles the CUDA kernel in file 'source_filename' and stores the PTX in the 'config' structure
-    int compile_nvrtc(std::string source_filename, LaunchParameters& config) {
+    // OR stores the CUDA source code in the 'config' structure, depending on whether 'generate_sources' was set.
+    int compile_nvrtc(std::string source_filename, LaunchParameters& config, const bool generate_sources) {
         std::ifstream file(source_filename);
         if (!file) {
             std::cerr << "Fatal error (compile_nvrtc): Failed to open source code file '" << source_filename << "'." << std::endl;
@@ -285,6 +286,10 @@ namespace launcher {
             return 1;
         }
         std::string kernel_source = ss.str();
+        if (generate_sources) {
+            config.kernel_code = kernel_source;
+            return 0;
+        }
 
         nvrtcProgram prog;
         NVRTC_CHECK(nvrtcCreateProgram(&prog, kernel_source.c_str(), "internal.cu", 0, nullptr, nullptr));
@@ -356,7 +361,7 @@ namespace launcher {
                     std::cerr << "Error: failed to read shared memory file '" << shmem_file << "' for kernel " << lp.kernel_name << "\n";
                     return 1;
                 }
-                if (compile_nvrtc(lp.kernel_source_file, lp)) {
+                if (compile_nvrtc(lp.kernel_source_file, lp, app_params.generate_cuda_source)) {
                     std::cerr << "Error: failed to compile source code file '" << lp.kernel_source_file << "' for kernel " << lp.kernel_name << "\n";
                     return 1;
                 }

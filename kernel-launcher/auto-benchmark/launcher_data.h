@@ -15,6 +15,9 @@ namespace launcher {
     constexpr const char* BENCHMARK_RESULTS_FILE = "benchmark_results.txt";
     constexpr const char* SOURCE_CODE_OUTPUT_FILE = "source.cu";
 
+    constexpr const char* HEADER_END_INDICATOR = "//@END_HEADER";
+    constexpr int HEADER_END_INDICATOR_LENGTH = 14;
+
     constexpr i32 UNSPECIFIED = -1;
     constexpr u32 RESULT_BUFFER_SIZE = 16u * 1024u; // max results per kernel launch
 

@@ -1,7 +1,7 @@
 {
     "device_id": 0,
     "debug": true,
-    "generate_cuda_source": false,
+    "generate_cuda_source": true,
 
     "kernels": 
     [
