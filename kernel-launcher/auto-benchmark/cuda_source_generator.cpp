@@ -79,6 +79,7 @@ __device__ inline float nextFloat(u64* rand){ return next(rand, 24) / (float)(1 
         print_kernel_launchers(fout, single_kernel);
 
         fout << "int main() { return kernel0::launch(); }";
+        return 1;
     }
 
     int generate_benchmarker_source(std::vector<launcher::LaunchParameters> kernel_configs) {
@@ -88,5 +89,6 @@ __device__ inline float nextFloat(u64* rand){ return next(rand, 24) / (float)(1 
         print_kernel_launchers(fout, kernel_configs);
 
         print_benchmarker(fout, kernel_configs);
+        return 1;
     }
 }

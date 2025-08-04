@@ -271,7 +271,7 @@ namespace launcher {
     }
 
     // Compiles the CUDA kernel in file 'source_filename' and stores the PTX in the 'config' structure
-    int compile_nvrtc(const char* source_filename, LaunchParameters& config) {
+    int compile_nvrtc(std::string source_filename, LaunchParameters& config) {
         std::ifstream file(source_filename);
         if (!file) {
             std::cerr << "Fatal error (compile_nvrtc): Failed to open source code file '" << source_filename << "'." << std::endl;
